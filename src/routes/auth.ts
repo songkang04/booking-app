@@ -21,7 +21,7 @@ const router = Router();
 router.post('/register', register);
 router.post('/login', login);
 router.get('/me', authenticate, me);
-router.put('/profile', authenticate, validateUpdateProfile, updateProfile);
+router.put('/update-profile', authenticate, validateUpdateProfile, updateProfile);
 router.post('/forgot-password', rateLimit, validateForgotPassword, forgotPassword);
 router.post('/reset-password', validateResetPassword, resetPassword);
 

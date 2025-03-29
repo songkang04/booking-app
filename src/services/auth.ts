@@ -52,7 +52,7 @@ class AuthService {
       .getOne();
 
     if (!user) {
-      throw new Error('Thông tin đăng nhập không hợp lệ');
+      throw new Error('Thông tin đăng nhập không hợp lệ.');
     }
 
     // Xác thực mật khẩu
