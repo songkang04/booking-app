@@ -1,7 +1,7 @@
 import * as bcrypt from 'bcrypt';
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddDefaultUsers1743188311160 implements MigrationInterface {
+export class AddDefaultUsers1743191099219 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Hash passwords for default users
     const salt = await bcrypt.genSalt(10);
