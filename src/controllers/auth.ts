@@ -175,3 +175,23 @@ export const resetPassword = async (req: Request, res: Response) => {
     return res.status(500).json(createResponse(false, 'Lỗi khi đặt lại mật khẩu'));
   }
 };
+
+export const verifyEmail = async (req: Request, res: Response) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json(createResponse(false, 'Token xác thực không được cung cấp'));
+    }
+
+    const result = await authService.verifyEmail(token);
+
+    return res.status(200).json(createResponse(true, 'Email đã được xác thực thành công'));
+  } catch (error) {
+    console.error('Lỗi xác thực email:', error);
+    if (error instanceof Error && error.message === 'Token xác thực không hợp lệ hoặc đã hết hạn') {
+      return res.status(400).json(createResponse(false, error.message));
+    }
+    return res.status(500).json(createResponse(false, 'Lỗi khi xác thực email'));
+  }
+};

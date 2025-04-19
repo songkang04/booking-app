@@ -12,7 +12,7 @@ class EmailService {
   constructor() {
     // Lấy cấu hình từ biến môi trường
     this.fromEmail = process.env.EMAIL_FROM || 'no-reply@bookingapp.com';
-    this.frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    this.frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     this.templateDir = path.join(__dirname, '../templates/emails');
 
     // Khởi tạo transporter cho nodemailer
@@ -112,6 +112,88 @@ class EmailService {
       return true;
     } catch (error) {
       console.error('Lỗi gửi email xác nhận đặt lại mật khẩu:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Gửi email xác thực tài khoản
+   */
+  async sendVerificationEmail(user: User, verificationToken: string): Promise<boolean> {
+    const verificationUrl = `${this.frontendUrl}/verify-email?token=${verificationToken}`;
+
+    try {
+      // Sử dụng template hiện có hoặc tạo nội dung email trực tiếp
+      let html;
+      try {
+        html = await this.loadTemplate('email-verification', {
+          firstName: user.firstName,
+          verificationUrl: verificationUrl,
+        });
+      } catch (error) {
+        // Nếu không có template, sử dụng HTML cơ bản
+        html = `
+          <div>
+            <h1>Xác thực tài khoản</h1>
+            <p>Xin chào ${user.firstName},</p>
+            <p>Cảm ơn bạn đã đăng ký tài khoản trên hệ thống của chúng tôi. Vui lòng nhấp vào liên kết dưới đây để xác thực email của bạn:</p>
+            <p><a href="${verificationUrl}" style="padding: 10px 15px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 4px;">Xác thực email</a></p>
+            <p>Hoặc bạn có thể sao chép và dán liên kết này vào trình duyệt:</p>
+            <p>${verificationUrl}</p>
+            <p>Liên kết sẽ hết hạn sau 24 giờ.</p>
+          </div>
+        `;
+      }
+
+      const mailOptions = {
+        from: this.fromEmail,
+        to: user.email,
+        subject: 'Xác thực tài khoản của bạn',
+        html,
+      };
+
+      await this.transporter.sendMail(mailOptions);
+      return true;
+    } catch (error) {
+      console.error('Lỗi gửi email xác thực:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Gửi email xác nhận xác thực tài khoản thành công
+   */
+  async sendVerificationConfirmation(user: User): Promise<boolean> {
+    try {
+      // Sử dụng template hiện có hoặc tạo nội dung email trực tiếp
+      let html;
+      try {
+        html = await this.loadTemplate('verification-confirmation', {
+          firstName: user.firstName,
+        });
+      } catch (error) {
+        // Nếu không có template, sử dụng HTML cơ bản
+        html = `
+          <div>
+            <h1>Xác thực tài khoản thành công</h1>
+            <p>Xin chào ${user.firstName},</p>
+            <p>Chúc mừng! Email của bạn đã được xác thực thành công.</p>
+            <p>Bây giờ bạn có thể đăng nhập và sử dụng đầy đủ các tính năng của hệ thống.</p>
+          </div>
+        `;
+      }
+
+      const mailOptions = {
+        from: this.fromEmail,
+        to: user.email,
+        subject: 'Tài khoản đã được xác thực thành công',
+        html,
+      };
+
+      await this.transporter.sendMail(mailOptions);
+      return true;
+    } catch (error) {
+      console.error('Lỗi gửi email xác nhận xác thực:', error);
       return false;
     }
   }

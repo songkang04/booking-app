@@ -43,6 +43,12 @@ export class User {
   isEmailVerified!: boolean;
 
   @Column({ nullable: true })
+  emailVerificationToken!: string;
+
+  @Column({ nullable: true })
+  emailVerificationExpires!: Date;
+
+  @Column({ nullable: true })
   phoneNumber!: string;
 
   @Column({ nullable: true })

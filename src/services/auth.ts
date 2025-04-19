@@ -30,6 +30,13 @@ class AuthService {
       throw new Error('Email đã được sử dụng');
     }
 
+    // Tạo token xác thực email
+    const verificationToken = crypto.randomBytes(20).toString('hex');
+    
+    // Thiết lập thời gian hết hạn (24 giờ)
+    const expiryDate = new Date();
+    expiryDate.setHours(expiryDate.getHours() + 24);
+
     // Tạo người dùng mới
     const user = this.userRepository.create({
       firstName,
@@ -37,9 +44,20 @@ class AuthService {
       email,
       password, // Sẽ được mã hóa bởi hook BeforeInsert của entity
       role: UserRole.USER,
+      emailVerificationToken: verificationToken,
+      emailVerificationExpires: expiryDate,
+      isEmailVerified: false
     });
 
     await this.userRepository.save(user);
+    
+    // Gửi email xác thực
+    try {
+      await emailService.sendVerificationEmail(user, verificationToken);
+    } catch (error) {
+      console.error('Lỗi gửi email xác thực:', error);
+    }
+    
     return user;
   }
 
@@ -160,6 +178,35 @@ class AuthService {
 
     // Gửi email xác nhận
     await emailService.sendPasswordResetConfirmation(user);
+
+    return user;
+  }
+
+  // Phương thức xác thực email
+  async verifyEmail(token: string): Promise<User> {
+    // Tìm người dùng với token hợp lệ và chưa hết hạn
+    const user = await this.userRepository.findOneBy({
+      emailVerificationToken: token,
+      emailVerificationExpires: MoreThan(new Date()),
+    });
+
+    if (!user) {
+      throw new Error('Token xác thực không hợp lệ hoặc đã hết hạn');
+    }
+
+    // Cập nhật trạng thái xác thực
+    user.isEmailVerified = true;
+    user.emailVerificationToken = ''; // Sử dụng chuỗi rỗng thay vì null
+    user.emailVerificationExpires = new Date(); // Sử dụng ngày hiện tại thay vì null
+
+    await this.userRepository.save(user);
+
+    // Gửi email xác nhận
+    try {
+      await emailService.sendVerificationConfirmation(user);
+    } catch (error) {
+      console.error('Lỗi gửi email xác nhận:', error);
+    }
 
     return user;
   }

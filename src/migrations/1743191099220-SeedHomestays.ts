@@ -41,10 +41,12 @@ export class CreateHomestayAndData1743191099220 implements MigrationInterface {
         location: 'Đà Lạt',
         price: 1200000,
         description: 'Villa sang trọng với view đẹp nhìn ra thành phố Đà Lạt.',
-        images: JSON.stringify(['villa-dalat-1.jpg', 'villa-dalat-2.jpg']),
+        images: JSON.stringify([
+          'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&auto=format&fit=crop&q=60','https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&auto=format&fit=crop&q=60'
+        ]),
         amenities: JSON.stringify(['Wifi', 'Bãi đỗ xe', 'Hồ bơi', 'Điều hòa', 'Nhà bếp']),
         cancellationPolicy: 'Miễn phí hủy phòng trước 7 ngày.',
-        status: HomestayStatus.ACTIVE
+        status: HomestayStatus.ACTIVE,
       },
       {
         name: 'Sapa Mountain View',
@@ -52,10 +54,12 @@ export class CreateHomestayAndData1743191099220 implements MigrationInterface {
         location: 'Sapa',
         price: 800000,
         description: 'Homestay mang đậm bản sắc dân tộc, view núi Fansipan.',
-        images: JSON.stringify(['sapa-view-1.jpg', 'sapa-view-2.jpg']),
+        images: JSON.stringify([
+          'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&auto=format&fit=crop&q=60','https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&auto=format&fit=crop&q=60'
+        ]),
         amenities: JSON.stringify(['Wifi', 'Bếp chung', 'Sưởi', 'Lò sưởi']),
         cancellationPolicy: 'Miễn phí hủy phòng trước 3 ngày.',
-        status: HomestayStatus.ACTIVE
+        status: HomestayStatus.ACTIVE,
       },
       {
         name: 'Phú Quốc Beach House',
@@ -63,10 +67,12 @@ export class CreateHomestayAndData1743191099220 implements MigrationInterface {
         location: 'Phú Quốc',
         price: 1500000,
         description: 'Beach house sang trọng ngay bãi biển.',
-        images: JSON.stringify(['phuquoc-1.jpg', 'phuquoc-2.jpg']),
+        images: JSON.stringify([
+          'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&auto=format&fit=crop&q=60','https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&auto=format&fit=crop&q=60'
+        ]),
         amenities: JSON.stringify(['Wifi', 'Hồ bơi', 'BBQ', 'Điều hòa', 'Nhà bếp']),
         cancellationPolicy: 'Hoàn tiền 100% nếu hủy trước 14 ngày.',
-        status: HomestayStatus.ACTIVE
+        status: HomestayStatus.ACTIVE,
       },
       {
         name: 'Hội An Ancient House',
@@ -74,10 +80,12 @@ export class CreateHomestayAndData1743191099220 implements MigrationInterface {
         location: 'Hội An',
         price: 900000,
         description: 'Nhà cổ truyền thống trong lòng phố cổ Hội An.',
-        images: JSON.stringify(['hoian-1.jpg', 'hoian-2.jpg']),
+        images: JSON.stringify([
+          'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&auto=format&fit=crop&q=60','https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&auto=format&fit=crop&q=60'
+        ]),
         amenities: JSON.stringify(['Wifi', 'Điều hòa', 'TV', 'Tủ lạnh']),
         cancellationPolicy: 'Hoàn tiền 50% nếu hủy trước 7 ngày.',
-        status: HomestayStatus.ACTIVE
+        status: HomestayStatus.ACTIVE,
       },
       {
         name: 'Mộc Châu Highland',
@@ -85,10 +93,12 @@ export class CreateHomestayAndData1743191099220 implements MigrationInterface {
         location: 'Mộc Châu',
         price: 1100000,
         description: 'Resort nhỏ giữa cao nguyên Mộc Châu.',
-        images: JSON.stringify(['mocchau-1.jpg', 'mocchau-2.jpg']),
+        images: JSON.stringify([
+          'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&auto=format&fit=crop&q=60','https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&auto=format&fit=crop&q=60',
+        ]),
         amenities: JSON.stringify(['Wifi', 'Bãi đỗ xe', 'Nhà hàng', 'Điều hòa']),
         cancellationPolicy: 'Không hoàn tiền khi hủy phòng.',
-        status: HomestayStatus.ACTIVE
+        status: HomestayStatus.ACTIVE,
       },
       {
         name: 'Hạ Long Bay View',
@@ -96,10 +106,12 @@ export class CreateHomestayAndData1743191099220 implements MigrationInterface {
         location: 'Hạ Long',
         price: 1300000,
         description: 'Căn hộ cao cấp view vịnh Hạ Long.',
-        images: JSON.stringify(['halong-1.jpg', 'halong-2.jpg']),
+        images: JSON.stringify([
+          'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&auto=format&fit=crop&q=60','https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&auto=format&fit=crop&q=60'
+        ]),
         amenities: JSON.stringify(['Wifi', 'Bãi đỗ xe', 'Hồ bơi', 'Gym']),
         cancellationPolicy: 'Hoàn tiền 70% nếu hủy trước 10 ngày.',
-        status: HomestayStatus.ACTIVE
+        status: HomestayStatus.ACTIVE,
       },
       {
         name: 'Mũi Né Bungalow',
@@ -107,10 +119,12 @@ export class CreateHomestayAndData1743191099220 implements MigrationInterface {
         location: 'Mũi Né',
         price: 950000,
         description: 'Bungalow ven biển với không gian riêng tư.',
-        images: JSON.stringify(['muine-1.jpg', 'muine-2.jpg']),
+        images: JSON.stringify([
+          'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&auto=format&fit=crop&q=60','https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&auto=format&fit=crop&q=60'
+        ]),
         amenities: JSON.stringify(['Wifi', 'Điều hòa', 'TV', 'BBQ']),
         cancellationPolicy: 'Hoàn tiền 100% nếu hủy trước 5 ngày.',
-        status: HomestayStatus.ACTIVE
+        status: HomestayStatus.ACTIVE,
       },
       {
         name: 'Tam Đảo Lodge',
@@ -118,10 +132,12 @@ export class CreateHomestayAndData1743191099220 implements MigrationInterface {
         location: 'Tam Đảo',
         price: 850000,
         description: 'Lodge ấm cúng trên đỉnh Tam Đảo.',
-        images: JSON.stringify(['tamdao-1.jpg', 'tamdao-2.jpg']),
+        images: JSON.stringify([
+          'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&auto=format&fit=crop&q=60','https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&auto=format&fit=crop&q=60'
+        ]),
         amenities: JSON.stringify(['Wifi', 'Sưởi', 'TV', 'Nhà bếp']),
         cancellationPolicy: 'Hoàn tiền 50% nếu hủy trước 3 ngày.',
-        status: HomestayStatus.ACTIVE
+        status: HomestayStatus.ACTIVE,
       },
       {
         name: 'Cần Thơ Riverside',
@@ -129,10 +145,12 @@ export class CreateHomestayAndData1743191099220 implements MigrationInterface {
         location: 'Cần Thơ',
         price: 750000,
         description: 'Nhà nghỉ ven sông với không gian thoáng đãng.',
-        images: JSON.stringify(['cantho-1.jpg', 'cantho-2.jpg']),
+        images: JSON.stringify([
+          'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&auto=format&fit=crop&q=60','https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&auto=format&fit=crop&q=60'
+        ]),
         amenities: JSON.stringify(['Wifi', 'Điều hòa', 'TV', 'Bếp']),
         cancellationPolicy: 'Không hoàn tiền khi hủy phòng.',
-        status: HomestayStatus.ACTIVE
+        status: HomestayStatus.ACTIVE,
       },
       {
         name: 'Ninh Bình Eco Valley',
@@ -140,11 +158,13 @@ export class CreateHomestayAndData1743191099220 implements MigrationInterface {
         location: 'Ninh Bình',
         price: 1000000,
         description: 'Khu nghỉ dưỡng sinh thái giữa thung lũng.',
-        images: JSON.stringify(['ninhbinh-1.jpg', 'ninhbinh-2.jpg']),
+        images: JSON.stringify([
+          'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&auto=format&fit=crop&q=60','https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&auto=format&fit=crop&q=60'
+        ]),
         amenities: JSON.stringify(['Wifi', 'Điều hòa', 'Nhà hàng', 'Xe đạp']),
         cancellationPolicy: 'Hoàn tiền 80% nếu hủy trước 7 ngày.',
-        status: HomestayStatus.ACTIVE
-      }
+        status: HomestayStatus.ACTIVE,
+      },
     ];
 
     // Insert homestays

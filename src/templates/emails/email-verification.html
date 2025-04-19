@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xác thực tài khoản</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #4CAF50;
+            margin: 0;
+            font-size: 24px;
+        }
+        .button {
+            display: inline-block;
+            background-color: #4CAF50;
+            color: white;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-weight: bold;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .url-display {
+            word-break: break-all;
+            margin: 15px 0;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .footer {
+            margin-top: 30px;
+            font-size: 12px;
+            color: #777;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Xác thực tài khoản</h1>
+        </div>
+        
+        <p>Xin chào {{firstName}},</p>
+        
+        <p>Cảm ơn bạn đã đăng ký tài khoản trên hệ thống của chúng tôi. Để hoàn tất quá trình đăng ký, vui lòng xác thực địa chỉ email của bạn bằng cách nhấp vào nút dưới đây:</p>
+        
+        <div style="text-align: center;">
+            <a href="{{verificationUrl}}" class="button">Xác thực email</a>
+        </div>
+        
+        <p>Hoặc bạn có thể sao chép và dán đường dẫn này vào trình duyệt của bạn:</p>
+        
+        <div class="url-display">
+            {{verificationUrl}}
+        </div>
+        
+        <p><strong>Lưu ý:</strong> Đường dẫn này sẽ hết hạn sau 24 giờ kể từ khi bạn nhận được email này.</p>
+        
+        <p>Nếu bạn không thực hiện yêu cầu đăng ký này, vui lòng bỏ qua email này.</p>
+        
+        <div class="footer">
+            <p>Email này được gửi tự động, vui lòng không trả lời.</p>
+            <p>&copy; 2025 Booking App. Bảo lưu mọi quyền.</p>
+        </div>
+    </div>
+</body>
+</html>
