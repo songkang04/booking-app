@@ -197,6 +197,174 @@ class EmailService {
       return false;
     }
   }
+
+  /**
+   * Gửi email xác nhận đặt phòng
+   */
+  async sendBookingConfirmation(
+    user: User,
+    verificationToken: string,
+    bookingDetails: {
+      homestayName: string;
+      homestayAddress: string;
+      checkInDate: Date;
+      checkOutDate: Date;
+      guestCount: number;
+      totalPrice: number;
+    }
+  ): Promise<boolean> {
+    const verificationUrl = `${this.frontendUrl}/booking-verification?token=${verificationToken}`;
+    
+    // Format dates to Vietnamese format
+    const formatDate = (date: Date) => {
+      return new Date(date).toLocaleDateString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    };
+
+    try {
+      // Sử dụng template hiện có hoặc tạo nội dung email trực tiếp
+      let html;
+      try {
+        html = await this.loadTemplate('booking-confirmation', {
+          firstName: user.firstName,
+          verificationUrl: verificationUrl,
+          homestayName: bookingDetails.homestayName,
+          homestayAddress: bookingDetails.homestayAddress,
+          checkInDate: formatDate(bookingDetails.checkInDate),
+          checkOutDate: formatDate(bookingDetails.checkOutDate),
+          guestCount: bookingDetails.guestCount.toString(),
+          totalPrice: bookingDetails.totalPrice.toLocaleString('vi-VN'),
+        });
+      } catch (error) {
+        // Nếu không có template, sử dụng HTML cơ bản theo mẫu từ kế hoạch
+        html = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee;">
+            <h2 style="color: #333;">Xác nhận đặt phòng của bạn tại ${bookingDetails.homestayName}</h2>
+            <p>Xin chào ${user.firstName},</p>
+            <p>Cảm ơn bạn đã đặt phòng tại ${bookingDetails.homestayName}. Vui lòng xác nhận đặt phòng bằng cách nhấn vào nút dưới đây:</p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${verificationUrl}" style="background-color: #4CAF50; color: white; padding: 12px 20px; text-decoration: none; border-radius: 4px; font-weight: bold;">XÁC NHẬN ĐẶT PHÒNG</a>
+            </div>
+            
+            <div style="background-color: #f9f9f9; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
+              <h3 style="margin-top: 0;">Chi tiết đặt phòng:</h3>
+              <p><strong>Homestay:</strong> ${bookingDetails.homestayName}</p>
+              <p><strong>Địa chỉ:</strong> ${bookingDetails.homestayAddress}</p>
+              <p><strong>Ngày check-in:</strong> ${formatDate(bookingDetails.checkInDate)}</p>
+              <p><strong>Ngày check-out:</strong> ${formatDate(bookingDetails.checkOutDate)}</p>
+              <p><strong>Số lượng khách:</strong> ${bookingDetails.guestCount}</p>
+              <p><strong>Tổng giá tiền:</strong> ${bookingDetails.totalPrice.toLocaleString('vi-VN')} VNĐ</p>
+            </div>
+            
+            <p>Lưu ý: Link xác nhận này sẽ hết hạn sau 24 giờ.</p>
+            <p>Nếu bạn không thực hiện đặt phòng này, vui lòng bỏ qua email này.</p>
+            
+            <p>Trân trọng,<br>
+            Đội ngũ hỗ trợ Homestay App</p>
+          </div>
+        `;
+      }
+
+      const mailOptions = {
+        from: this.fromEmail,
+        to: user.email,
+        subject: `Xác nhận đặt phòng tại ${bookingDetails.homestayName}`,
+        html,
+      };
+
+      await this.transporter.sendMail(mailOptions);
+      return true;
+    } catch (error) {
+      console.error('Lỗi gửi email xác nhận đặt phòng:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Gửi email thông báo đặt phòng thành công
+   */
+  async sendBookingSuccessNotification(
+    user: User,
+    bookingDetails: {
+      homestayName: string;
+      homestayAddress: string;
+      checkInDate: Date;
+      checkOutDate: Date;
+      guestCount: number;
+      totalPrice: number;
+      bookingId: string;
+    }
+  ): Promise<boolean> {
+    // Format dates to Vietnamese format
+    const formatDate = (date: Date) => {
+      return new Date(date).toLocaleDateString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    };
+
+    try {
+      // Sử dụng template hiện có hoặc tạo nội dung email trực tiếp
+      let html;
+      try {
+        html = await this.loadTemplate('booking-success', {
+          firstName: user.firstName,
+          homestayName: bookingDetails.homestayName,
+          homestayAddress: bookingDetails.homestayAddress,
+          checkInDate: formatDate(bookingDetails.checkInDate),
+          checkOutDate: formatDate(bookingDetails.checkOutDate),
+          guestCount: bookingDetails.guestCount.toString(),
+          totalPrice: bookingDetails.totalPrice.toLocaleString('vi-VN'),
+          bookingId: bookingDetails.bookingId,
+        });
+      } catch (error) {
+        // Nếu không có template, sử dụng HTML cơ bản 
+        html = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee;">
+            <h2 style="color: #333;">Đặt phòng thành công!</h2>
+            <p>Xin chào ${user.firstName},</p>
+            <p>Chúc mừng! Đặt phòng của bạn tại ${bookingDetails.homestayName} đã được xác nhận thành công.</p>
+            
+            <div style="background-color: #f9f9f9; padding: 15px; border-radius: 4px; margin: 20px 0;">
+              <h3 style="margin-top: 0;">Chi tiết đặt phòng:</h3>
+              <p><strong>Mã đặt phòng:</strong> ${bookingDetails.bookingId}</p>
+              <p><strong>Homestay:</strong> ${bookingDetails.homestayName}</p>
+              <p><strong>Địa chỉ:</strong> ${bookingDetails.homestayAddress}</p>
+              <p><strong>Ngày check-in:</strong> ${formatDate(bookingDetails.checkInDate)}</p>
+              <p><strong>Ngày check-out:</strong> ${formatDate(bookingDetails.checkOutDate)}</p>
+              <p><strong>Số lượng khách:</strong> ${bookingDetails.guestCount}</p>
+              <p><strong>Tổng giá tiền:</strong> ${bookingDetails.totalPrice.toLocaleString('vi-VN')} VNĐ</p>
+            </div>
+            
+            <p>Bạn có thể xem chi tiết đặt phòng và lịch sử đặt phòng của mình trong phần "Đặt phòng của tôi" trên trang cá nhân.</p>
+            
+            <p>Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi!</p>
+            
+            <p>Trân trọng,<br>
+            Đội ngũ hỗ trợ Homestay App</p>
+          </div>
+        `;
+      }
+
+      const mailOptions = {
+        from: this.fromEmail,
+        to: user.email,
+        subject: `Đặt phòng thành công tại ${bookingDetails.homestayName}`,
+        html,
+      };
+
+      await this.transporter.sendMail(mailOptions);
+      return true;
+    } catch (error) {
+      console.error('Lỗi gửi email thông báo đặt phòng thành công:', error);
+      return false;
+    }
+  }
 }
 
 export default new EmailService();

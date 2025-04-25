@@ -1,0 +1,64 @@
+import { IsDate, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { BookingStatus } from '../models/booking';
+
+export class CreateBookingDto {
+  @IsNumber({}, { message: 'Homestay ID phải là số' })
+  @IsNotEmpty({ message: 'Homestay ID không được để trống' })
+  homestayId!: number;
+
+  @Type(() => Date)
+  @IsDate({ message: 'Ngày check-in không hợp lệ' })
+  @IsNotEmpty({ message: 'Ngày check-in không được để trống' })
+  checkInDate!: Date;
+
+  @Type(() => Date)
+  @IsDate({ message: 'Ngày check-out không hợp lệ' })
+  @IsNotEmpty({ message: 'Ngày check-out không được để trống' })
+  checkOutDate!: Date;
+
+  @IsNumber({}, { message: 'Số lượng khách không hợp lệ' })
+  @Min(1, { message: 'Số lượng khách phải ít nhất là 1' })
+  @IsNotEmpty({ message: 'Số lượng khách không được để trống' })
+  guestCount!: number;
+
+  @IsOptional()
+  @IsString({ message: 'Ghi chú phải là chuỗi ký tự' })
+  notes?: string;
+}
+
+export class UpdateBookingStatusDto {
+  @IsEnum(BookingStatus, { message: 'Trạng thái đặt phòng không hợp lệ' })
+  @IsNotEmpty({ message: 'Trạng thái đặt phòng không được để trống' })
+  status!: BookingStatus;
+}
+
+export class BookingResponseDto {
+  id!: string;
+  userId!: string;
+  homestayId!: number;
+  checkInDate!: Date;
+  checkOutDate!: Date;
+  guestCount!: number;
+  totalPrice!: number;
+  status!: BookingStatus;
+  notes?: string;
+  createdAt!: Date;
+}
+
+export class BookingDetailsResponseDto extends BookingResponseDto {
+  homestay!: {
+    id: number;
+    name: string;
+    address: string;
+    location: string;
+    price: number;
+    images: string[];
+  };
+  user!: {
+    id: string;
+    fullName: string;
+    email: string;
+    phone?: string;
+  };
+}
