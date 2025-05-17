@@ -24,15 +24,19 @@ class AuthService {
     email: string,
     password: string
   ): Promise<User> {
+    console.log(`[AUTH SERVICE] Đăng ký người dùng mới: ${email}`);
+
     // Kiểm tra email đã tồn tại chưa
     const existingUser = await this.userRepository.findOneBy({ email });
     if (existingUser) {
+      console.log(`[AUTH SERVICE] ⚠️ Email đã được sử dụng: ${email}`);
       throw new Error('Email đã được sử dụng');
     }
 
     // Tạo token xác thực email
     const verificationToken = crypto.randomBytes(20).toString('hex');
-    
+    console.log(`[AUTH SERVICE] ✅ Đã tạo token xác thực: ${verificationToken.substring(0, 10)}...`);
+
     // Thiết lập thời gian hết hạn (24 giờ)
     const expiryDate = new Date();
     expiryDate.setHours(expiryDate.getHours() + 24);
@@ -49,16 +53,24 @@ class AuthService {
       isEmailVerified: false
     });
 
-    await this.userRepository.save(user);
-    
+    console.log(`[AUTH SERVICE] 🔄 Đang lưu người dùng vào database...`);
+    const savedUser = await this.userRepository.save(user);
+    console.log(`[AUTH SERVICE] ✅ Đã lưu người dùng: ID=${savedUser.id}`);
+
     // Gửi email xác thực
+    console.log(`[AUTH SERVICE] 🔄 Bắt đầu gửi email xác thực...`);
     try {
-      await emailService.sendVerificationEmail(user, verificationToken);
+      const emailSent = await emailService.sendVerificationEmail(savedUser, verificationToken);
+      if (emailSent) {
+        console.log(`[AUTH SERVICE] ✅ Đã gửi email xác thực thành công cho: ${email}`);
+      } else {
+        console.error(`[AUTH SERVICE] ❌ Không thể gửi email xác thực cho: ${email}`);
+      }
     } catch (error) {
-      console.error('Lỗi gửi email xác thực:', error);
+      console.error(`[AUTH SERVICE] ❌ Lỗi gửi email xác thực:`, error);
     }
-    
-    return user;
+
+    return savedUser;
   }
 
   async login(email: string, password: string): Promise<User> {

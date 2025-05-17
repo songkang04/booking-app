@@ -1,6 +1,6 @@
 import { IsDate, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 import { Type } from 'class-transformer';
-import { BookingStatus } from '../models/booking';
+import { BookingStatus, PaymentStatus } from '../models/booking';
 
 export class CreateBookingDto {
   @IsNumber({}, { message: 'Homestay ID phải là số' })
@@ -44,6 +44,43 @@ export class BookingResponseDto {
   status!: BookingStatus;
   notes?: string;
   createdAt!: Date;
+}
+
+// DTO for updating payment status
+export class UpdatePaymentStatusDto {
+  @IsEnum(PaymentStatus, { message: 'Trạng thái thanh toán không hợp lệ' })
+  @IsNotEmpty({ message: 'Trạng thái thanh toán không được để trống' })
+  paymentStatus!: PaymentStatus;
+
+  @IsOptional()
+  @IsString({ message: 'Mã tham chiếu thanh toán phải là chuỗi ký tự' })
+  paymentReference?: string;
+
+  @IsOptional()
+  @IsString({ message: 'Ghi chú phải là chuỗi ký tự' })
+  notes?: string;
+}
+
+// DTO for payment verification by admin
+export class VerifyPaymentDto {
+  @IsNotEmpty({ message: 'ID đặt phòng không được để trống' })
+  @IsUUID('4', { message: 'ID đặt phòng không hợp lệ' })
+  bookingId!: string;
+
+  @IsOptional()
+  @IsString({ message: 'Ghi chú phải là chuỗi ký tự' })
+  notes?: string;
+}
+
+export class PaymentInfoResponseDto {
+  id!: string;
+  paymentStatus!: PaymentStatus;
+  totalPrice!: number;
+  paymentMethod?: string;
+  paymentReference?: string;
+  paymentQrCode?: string;
+  paymentDate?: Date;
+  paymentVerifiedAt?: Date;
 }
 
 export class BookingDetailsResponseDto extends BookingResponseDto {

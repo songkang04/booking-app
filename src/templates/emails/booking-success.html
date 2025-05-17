@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thanh toán thành công</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 5px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .header h2 {
+            color: #28a745;
+        }
+        .booking-details {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .payment-details {
+            background-color: #edf7ed;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            border: 1px solid #c3e6cb;
+        }
+        .success-icon {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .success-icon svg {
+            width: 60px;
+            height: 60px;
+            color: #28a745;
+        }
+        .button {
+            background-color: #4361ee;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+            display: inline-block;
+        }
+        .footer {
+            margin-top: 30px;
+            font-size: 12px;
+            color: #777;
+            border-top: 1px solid #ddd;
+            padding-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="success-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M0 0h24v24H0V0z" fill="none"/>
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm4.59-12.42L10 14.17l-2.59-2.58L6 13l4 4 8-8z"/>
+                </svg>
+            </div>
+            <h2>Thanh toán thành công!</h2>
+        </div>
+
+        <p>Xin chào {{firstName}},</p>
+
+        <p>Chúng tôi rất vui thông báo rằng thanh toán của bạn đã được xác nhận và đặt phòng tại <strong>{{homestayName}}</strong> đã hoàn tất thành công.</p>
+
+        <div class="booking-details">
+            <h3 style="margin-top: 0;">Chi tiết đặt phòng:</h3>
+            <p><strong>Mã đặt phòng:</strong> {{bookingId}}</p>
+            <p><strong>Homestay:</strong> {{homestayName}}</p>
+            <p><strong>Địa chỉ:</strong> {{homestayAddress}}</p>
+            <p><strong>Ngày check-in:</strong> {{checkInDate}}</p>
+            <p><strong>Ngày check-out:</strong> {{checkOutDate}}</p>
+            <p><strong>Số lượng khách:</strong> {{guestCount}}</p>
+            <p><strong>Tổng giá tiền:</strong> {{totalPrice}} VNĐ</p>
+        </div>
+
+        <!-- Thông tin thanh toán đã xác nhận -->
+        <div class="payment-details">
+            <h3 style="margin-top: 0;">Thông tin thanh toán:</h3>
+            <p><strong>Trạng thái:</strong> <span style="color: #28a745; font-weight: bold;">Đã thanh toán</span></p>
+            <p><strong>Phương thức thanh toán:</strong> {{paymentMethod}}</p>
+            <p><strong>Ngày thanh toán:</strong> {{paymentDate}}</p>
+            {{#if paymentReference}}
+            <p><strong>Mã giao dịch:</strong> {{paymentReference}}</p>
+            {{/if}}
+            <p style="margin-top: 15px;">Cảm ơn bạn đã thanh toán. Đặt phòng của bạn đã được xác nhận và bạn đã sẵn sàng cho chuyến đi!</p>
+        </div>
+
+        <p>Dưới đây là một số thông tin quan trọng để chuẩn bị cho chuyến đi của bạn:</p>
+        <ul>
+            <li>Giờ nhận phòng: 14:00</li>
+            <li>Giờ trả phòng: 12:00</li>
+            <li>Vui lòng mang theo giấy tờ tùy thân có ảnh khi nhận phòng</li>
+            <li>Liên hệ chủ nhà: {{hostPhoneNumber}}</li>
+        </ul>
+
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="http://localhost:5173/profile" class="button">XEM CHI TIẾT TRÊN TRANG CÁ NHÂN</a>
+        </div>
+
+        <p>Chúc bạn có một chuyến đi thật vui vẻ và thoải mái!</p>
+
+        <div class="footer">
+            <p>Trân trọng,<br>
+            Đội ngũ hỗ trợ HD Homestay</p>
+        </div>
+    </div>
+</body>
+</html>

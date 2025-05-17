@@ -35,9 +35,17 @@ class EmailService {
   private async verifyConnection() {
     try {
       await this.transporter.verify();
-      console.log('Kết nối SMTP đã sẵn sàng');
+      console.log('✅ Kết nối SMTP đã sẵn sàng');
     } catch (error) {
-      console.error('Lỗi kết nối SMTP:', error);
+      console.error('❌ Lỗi kết nối SMTP:', error);
+      console.error('📧 Chi tiết cấu hình email:', {
+        host: process.env.EMAIL_HOST,
+        port: process.env.EMAIL_PORT,
+        secure: process.env.EMAIL_SECURE === 'true',
+        user: process.env.EMAIL_USER,
+        // Hiển thị 3 ký tự đầu tiên của mật khẩu để debug
+        pass: process.env.EMAIL_PASSWORD ? `${process.env.EMAIL_PASSWORD.substring(0, 3)}...` : 'không được cung cấp'
+      });
     }
   }
 
@@ -122,6 +130,9 @@ class EmailService {
   async sendVerificationEmail(user: User, verificationToken: string): Promise<boolean> {
     const verificationUrl = `${this.frontendUrl}/verify-email?token=${verificationToken}`;
 
+    console.log('🔄 Đang chuẩn bị gửi email xác thực cho:', user.email);
+    console.log('🔗 URL xác thực:', verificationUrl);
+
     try {
       // Sử dụng template hiện có hoặc tạo nội dung email trực tiếp
       let html;
@@ -130,7 +141,11 @@ class EmailService {
           firstName: user.firstName,
           verificationUrl: verificationUrl,
         });
+        console.log('✅ Đã tải template email-verification thành công');
       } catch (error) {
+        console.error('❌ Lỗi khi tải template email-verification:', error);
+        console.log('⚠️ Sử dụng template HTML cơ bản thay thế');
+
         // Nếu không có template, sử dụng HTML cơ bản
         html = `
           <div>
@@ -152,10 +167,13 @@ class EmailService {
         html,
       };
 
-      await this.transporter.sendMail(mailOptions);
+      console.log('🔄 Đang gửi email xác thực đến:', user.email);
+      const info = await this.transporter.sendMail(mailOptions);
+      console.log('✅ Email xác thực đã được gửi:', info.messageId);
+      console.log('📧 Thông tin chi tiết:', info);
       return true;
     } catch (error) {
-      console.error('Lỗi gửi email xác thực:', error);
+      console.error('❌ Lỗi gửi email xác thực:', error);
       return false;
     }
   }
@@ -214,7 +232,7 @@ class EmailService {
     }
   ): Promise<boolean> {
     const verificationUrl = `${this.frontendUrl}/booking-verification?token=${verificationToken}`;
-    
+
     // Format dates to Vietnamese format
     const formatDate = (date: Date) => {
       return new Date(date).toLocaleDateString('vi-VN', {
@@ -245,11 +263,11 @@ class EmailService {
             <h2 style="color: #333;">Xác nhận đặt phòng của bạn tại ${bookingDetails.homestayName}</h2>
             <p>Xin chào ${user.firstName},</p>
             <p>Cảm ơn bạn đã đặt phòng tại ${bookingDetails.homestayName}. Vui lòng xác nhận đặt phòng bằng cách nhấn vào nút dưới đây:</p>
-            
+
             <div style="text-align: center; margin: 30px 0;">
               <a href="${verificationUrl}" style="background-color: #4CAF50; color: white; padding: 12px 20px; text-decoration: none; border-radius: 4px; font-weight: bold;">XÁC NHẬN ĐẶT PHÒNG</a>
             </div>
-            
+
             <div style="background-color: #f9f9f9; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
               <h3 style="margin-top: 0;">Chi tiết đặt phòng:</h3>
               <p><strong>Homestay:</strong> ${bookingDetails.homestayName}</p>
@@ -259,10 +277,10 @@ class EmailService {
               <p><strong>Số lượng khách:</strong> ${bookingDetails.guestCount}</p>
               <p><strong>Tổng giá tiền:</strong> ${bookingDetails.totalPrice.toLocaleString('vi-VN')} VNĐ</p>
             </div>
-            
+
             <p>Lưu ý: Link xác nhận này sẽ hết hạn sau 24 giờ.</p>
             <p>Nếu bạn không thực hiện đặt phòng này, vui lòng bỏ qua email này.</p>
-            
+
             <p>Trân trọng,<br>
             Đội ngũ hỗ trợ Homestay App</p>
           </div>
@@ -323,13 +341,13 @@ class EmailService {
           bookingId: bookingDetails.bookingId,
         });
       } catch (error) {
-        // Nếu không có template, sử dụng HTML cơ bản 
+        // Nếu không có template, sử dụng HTML cơ bản
         html = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee;">
             <h2 style="color: #333;">Đặt phòng thành công!</h2>
             <p>Xin chào ${user.firstName},</p>
             <p>Chúc mừng! Đặt phòng của bạn tại ${bookingDetails.homestayName} đã được xác nhận thành công.</p>
-            
+
             <div style="background-color: #f9f9f9; padding: 15px; border-radius: 4px; margin: 20px 0;">
               <h3 style="margin-top: 0;">Chi tiết đặt phòng:</h3>
               <p><strong>Mã đặt phòng:</strong> ${bookingDetails.bookingId}</p>
@@ -340,11 +358,11 @@ class EmailService {
               <p><strong>Số lượng khách:</strong> ${bookingDetails.guestCount}</p>
               <p><strong>Tổng giá tiền:</strong> ${bookingDetails.totalPrice.toLocaleString('vi-VN')} VNĐ</p>
             </div>
-            
+
             <p>Bạn có thể xem chi tiết đặt phòng và lịch sử đặt phòng của mình trong phần "Đặt phòng của tôi" trên trang cá nhân.</p>
-            
+
             <p>Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi!</p>
-            
+
             <p>Trân trọng,<br>
             Đội ngũ hỗ trợ Homestay App</p>
           </div>
@@ -362,6 +380,33 @@ class EmailService {
       return true;
     } catch (error) {
       console.error('Lỗi gửi email thông báo đặt phòng thành công:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Gửi email với nội dung tùy chỉnh
+   */
+  async sendMail(options: {
+    to: string;
+    subject: string;
+    html: string;
+    attachments?: Array<{
+      filename: string;
+      path: string;
+      cid?: string;
+    }>;
+  }): Promise<boolean> {
+    try {
+      const mailOptions = {
+        from: this.fromEmail,
+        ...options
+      };
+
+      await this.transporter.sendMail(mailOptions);
+      return true;
+    } catch (error) {
+      console.error('Lỗi gửi email:', error);
       return false;
     }
   }

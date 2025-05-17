@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thông báo thanh toán chờ xác nhận</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 5px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            background-color: #4361ee;
+            color: white;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .booking-details {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            border-left: 4px solid #4361ee;
+        }
+        .payment-details {
+            background-color: #fff8e6;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            border-left: 4px solid #f59e0b;
+        }
+        .button {
+            background-color: #4361ee;
+            color: white;
+            padding: 12px 20px;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+            display: inline-block;
+            margin: 10px 0;
+        }
+        .footer {
+            margin-top: 30px;
+            font-size: 12px;
+            color: #777;
+            border-top: 1px solid #ddd;
+            padding-top: 20px;
+        }
+        .warning {
+            background-color: #ffe2e5;
+            border-left: 4px solid #ef4444;
+            padding: 10px 15px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>Thông báo: Có thanh toán mới chờ xác nhận</h2>
+        </div>
+
+        <p>Xin chào Admin,</p>
+
+        <p>Hệ thống vừa ghi nhận một người dùng đã xác nhận thanh toán và đang chờ bạn xác nhận từ hệ thống quản trị.</p>
+
+        <div class="booking-details">
+            <h3 style="margin-top: 0;">Chi tiết đặt phòng:</h3>
+            <p><strong>Mã đặt phòng:</strong> {{bookingId}}</p>
+            <p><strong>Homestay:</strong> {{homestayName}}</p>
+            <p><strong>Địa chỉ:</strong> {{homestayAddress}}</p>
+            <p><strong>Người đặt:</strong> {{userName}} ({{userEmail}})</p>
+            <p><strong>Tổng tiền:</strong> {{totalPrice}} VNĐ</p>
+        </div>
+
+        <div class="payment-details">
+            <h3 style="margin-top: 0;">Thông tin thanh toán:</h3>
+            <p><strong>Mã tham chiếu thanh toán:</strong> {{paymentReference}}</p>
+            <p><strong>Thời gian xác nhận:</strong> {{confirmationTime}}</p>
+            <p><strong>Trạng thái:</strong> <span style="color: #f59e0b; font-weight: bold;">Đang chờ xác nhận từ Admin</span></p>
+        </div>
+
+        <p>Vui lòng kiểm tra thông tin thanh toán của người dùng và tiến hành xác nhận hoặc từ chối.</p>
+
+        <div style="text-align: center; margin: 25px 0;">
+            <a href="{{adminUrl}}" class="button">XEM TRONG HỆ THỐNG QUẢN TRỊ</a>
+        </div>
+
+        <div class="warning">
+            <p><strong>Lưu ý:</strong> Việc xác nhận thanh toán sẽ tự động gửi email thông báo cho người dùng và cập nhật trạng thái đặt phòng.</p>
+        </div>
+
+        <div class="footer">
+            <p>Email này được gửi tự động từ hệ thống HD Homestay.<br>
+            © 2025 HD Homestay. Tất cả quyền được bảo lưu.</p>
+        </div>
+    </div>
+</body>
+</html>

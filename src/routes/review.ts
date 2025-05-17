@@ -6,7 +6,7 @@ import {
   getHomestayReviews,
   responseToReview
 } from '../controllers/review';
-import { authenticate, authorize } from '../middlewares/auth';
+import { authenticateJWT, authorize } from '../middlewares/auth';
 import { UserRole } from '../models/user';
 
 const router = Router();
@@ -15,7 +15,7 @@ const router = Router();
 router.get('/homestay/:homestayId', getHomestayReviews);
 
 // Protected routes
-router.use(authenticate);
+router.use(authenticateJWT);
 
 // User routes
 router.post('/', createReview);

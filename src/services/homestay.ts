@@ -90,7 +90,7 @@ class HomestayService {
         where: { id, status: HomestayStatus.ACTIVE },
         relations: ['owner'],
       });
-      
+
       return homestay;
     } catch (error) {
       console.error('Lỗi khi lấy thông tin homestay:', error);
@@ -101,15 +101,15 @@ class HomestayService {
   async getSimilarHomestays(id: number, limit: number = 4): Promise<Homestay[]> {
     try {
       const homestay = await this.getHomestayById(id);
-      
+
       if (!homestay) {
         return [];
       }
-      
+
       // Tìm homestay tương tự dựa trên location và tầm giá ±30%
       const minPrice = homestay.price * 0.7;
       const maxPrice = homestay.price * 1.3;
-      
+
       const query = this.homestayRepository.createQueryBuilder('homestay')
         .where('homestay.id != :id', { id })
         .andWhere('homestay.status = :status', { status: HomestayStatus.ACTIVE })
@@ -117,7 +117,7 @@ class HomestayService {
         .andWhere('homestay.price BETWEEN :minPrice AND :maxPrice', { minPrice, maxPrice })
         .orderBy('RANDOM()')
         .take(limit);
-      
+
       return await query.getMany();
     } catch (error) {
       console.error('Lỗi khi lấy danh sách homestay tương tự:', error);
@@ -165,10 +165,10 @@ class HomestayService {
     // Add amenities filter
     if (amenities && amenities.length > 0) {
       console.log('Tìm kiếm theo tiện nghi:', amenities);
-      
+
       // Chỉ tìm kiếm các tiện nghi hợp lệ
       const validAmenities = amenities.filter(amenity => isValidAmenity(amenity));
-      
+
       // Sử dụng LIKE cho mỗi tiện nghi - cách tiếp cận tương thích hơn
       validAmenities.forEach((amenity, index) => {
         query.andWhere(`homestay.amenities LIKE :amenity${index}`, { [`amenity${index}`]: `%${amenity}%` });
@@ -207,6 +207,13 @@ class HomestayService {
       where: { ownerID: ownerId },
       order: { createdAt: 'DESC' },
     });
+  }
+
+  /**
+   * Đếm tổng số homestay
+   */
+  async countHomestays(): Promise<number> {
+    return this.homestayRepository.count();
   }
 }
 

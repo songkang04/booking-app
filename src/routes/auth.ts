@@ -8,7 +8,7 @@ import {
   updateProfile,
   verifyEmail
 } from '../controllers/auth';
-import { authenticate } from '../middlewares/auth';
+import { authenticateJWT } from '../middlewares/auth';
 import {
   validateForgotPassword,
   validateResetPassword,
@@ -21,8 +21,8 @@ const router = Router();
 // Auth routes
 router.post('/register', register);
 router.post('/login', login);
-router.get('/me', authenticate, me);
-router.put('/update-profile', authenticate, validateUpdateProfile, updateProfile);
+router.get('/me', authenticateJWT, me);
+router.put('/update-profile', authenticateJWT, validateUpdateProfile, updateProfile);
 router.post('/forgot-password', rateLimit, validateForgotPassword, forgotPassword);
 router.post('/reset-password', validateResetPassword, resetPassword);
 router.post('/verify-email', verifyEmail);

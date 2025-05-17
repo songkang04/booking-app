@@ -69,6 +69,13 @@ export class User {
   @UpdateDateColumn()
   updatedAt!: Date;
 
+  /**
+   * Get user's full name
+   */
+  get fullName(): string {
+    return `${this.firstName} ${this.lastName}`;
+  }
+
   @BeforeInsert()
   @BeforeUpdate()
   async hashPassword() {

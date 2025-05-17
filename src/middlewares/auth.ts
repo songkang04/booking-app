@@ -12,7 +12,7 @@ declare global {
   }
 }
 
-export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
+export const authenticateJWT = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
 
@@ -51,4 +51,19 @@ export const authorize = (roles: UserRole[]) => {
 
     next();
   };
+};
+
+/**
+ * Middleware để bảo vệ các route chỉ dành cho admin
+ */
+export const authorizeAdmin = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.user) {
+    return res.status(401).json({ message: 'Authentication required' });
+  }
+
+  if (req.user.role !== UserRole.ADMIN) {
+    return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
+  }
+
+  next();
 };

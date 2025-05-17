@@ -8,7 +8,7 @@ import {
   getMyHomestays,
   getSimilarHomestays,
 } from '../controllers/homestay';
-import { authenticate, authorize } from '../middlewares/auth';
+import { authenticateJWT, authorize } from '../middlewares/auth';
 import { UserRole } from '../models/user';
 
 const router = Router();
@@ -19,7 +19,7 @@ router.get('/:id', getHomestayById);
 router.get('/:id/similar', getSimilarHomestays);
 
 // Protected routes
-router.use(authenticate);
+router.use(authenticateJWT);
 
 // Owner/Admin only routes
 router.post('/', authorize([UserRole.ADMIN]), createHomestay);

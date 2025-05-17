@@ -3,6 +3,8 @@ import authRoutes from './auth';
 import homestayRoutes from './homestay';
 import reviewRoutes from './review';
 import bookingRoutes from './booking';
+import paymentRoutes from './payment';
+import adminRoutes from './admin';
 
 const routes = Router();
 
@@ -17,5 +19,11 @@ routes.use('/reviews', reviewRoutes);
 
 // Mount the booking routes
 routes.use('/bookings', bookingRoutes);
+
+// Mount the payment routes - the routes themselves already include /bookings prefix
+routes.use('/', paymentRoutes);
+
+// Mount the admin routes
+routes.use('/admin', adminRoutes);
 
 export default routes;
