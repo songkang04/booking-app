@@ -1,11 +1,11 @@
 import { IsDate, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 import { Type } from 'class-transformer';
-import { BookingStatus, PaymentStatus } from '../models/booking';
+import { BookingStatus, PaymentStatus } from '../schemas/booking.schema';
 
 export class CreateBookingDto {
-  @IsNumber({}, { message: 'Homestay ID phải là số' })
+  @IsString({ message: 'Homestay ID không hợp lệ' })
   @IsNotEmpty({ message: 'Homestay ID không được để trống' })
-  homestayId!: number;
+  homestayId!: string;
 
   @Type(() => Date)
   @IsDate({ message: 'Ngày check-in không hợp lệ' })
@@ -31,6 +31,10 @@ export class UpdateBookingStatusDto {
   @IsEnum(BookingStatus, { message: 'Trạng thái đặt phòng không hợp lệ' })
   @IsNotEmpty({ message: 'Trạng thái đặt phòng không được để trống' })
   status!: BookingStatus;
+
+  @IsOptional()
+  @IsString({ message: 'Ghi chú phải là chuỗi ký tự' })
+  notes?: string;
 }
 
 export class BookingResponseDto {

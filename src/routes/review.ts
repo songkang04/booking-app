@@ -7,7 +7,6 @@ import {
   responseToReview
 } from '../controllers/review';
 import { authenticateJWT, authorize } from '../middlewares/auth';
-import { UserRole } from '../models/user';
 
 const router = Router();
 

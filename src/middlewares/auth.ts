@@ -1,13 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { AppDataSource } from '../config/database';
-import { User, UserRole } from '../models/user';
+import { User, IUser, UserRole } from '../schemas/user.schema';
 
 // Extend Express Request interface to include user
 declare global {
   namespace Express {
     interface Request {
-      user?: User;
+      user?: IUser;
     }
   }
 }
@@ -23,10 +22,9 @@ export const authenticateJWT = async (req: Request, res: Response, next: NextFun
     const token = authHeader.split(' ')[1];
     const secret = process.env.JWT_SECRET || 'your-secret-key';
 
-    const decoded = jwt.verify(token, secret) as { userId: number };
+    const decoded = jwt.verify(token, secret) as { userId: string };
 
-    const userRepository = AppDataSource.getRepository(User);
-    const user = await userRepository.findOneBy({ id: decoded.userId });
+    const user = await User.findById(decoded.userId);
 
     if (!user) {
       return res.status(401).json({ message: 'Invalid token' });

@@ -1,7 +1,9 @@
 import { Request, Response } from 'express';
+import { Types } from 'mongoose';
 import bookingService from '../services/booking';
 import { createResponse } from '../utils/function';
 import { CreateBookingDto, UpdateBookingStatusDto } from '../dtos/booking.dto';
+import { BookingStatus, PaymentStatus } from '../schemas/booking.schema';
 
 /**
  * Tạo đặt phòng mới
@@ -9,11 +11,35 @@ import { CreateBookingDto, UpdateBookingStatusDto } from '../dtos/booking.dto';
 export const createBooking = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json(createResponse(false, 'Yêu cầu đăng nhập để đặt phòng'));
+    if (!userId || !Types.ObjectId.isValid(userId)) {
+      return res.status(401).json(createResponse(false, 'Yêu cầu xác thực hoặc ID người dùng không hợp lệ'));
     }
 
     const bookingData: CreateBookingDto = req.body;
+
+    // Validate homestayId
+    if (!bookingData.homestayId || !Types.ObjectId.isValid(bookingData.homestayId)) {
+      return res.status(400).json(createResponse(false, 'ID homestay không hợp lệ'));
+    }
+
+    // Validate dates
+    const now = new Date();
+    const checkIn = new Date(bookingData.checkInDate);
+    const checkOut = new Date(bookingData.checkOutDate);
+
+    if (checkIn < now) {
+      return res.status(400).json(createResponse(false, 'Ngày check-in không hợp lệ'));
+    }
+
+    if (checkOut <= checkIn) {
+      return res.status(400).json(createResponse(false, 'Ngày check-out phải sau ngày check-in'));
+    }
+
+    // Validate guest count
+    if (!bookingData.guestCount || bookingData.guestCount < 1) {
+      return res.status(400).json(createResponse(false, 'Số lượng khách không hợp lệ'));
+    }
+
     const booking = await bookingService.createBooking(userId, bookingData);
     return res.status(201).json(
       createResponse(
@@ -28,15 +54,14 @@ export const createBooking = async (req: Request, res: Response) => {
     if (error instanceof Error) {
       const errorMessage = error.message;
 
-      if (errorMessage === 'Người dùng không tồn tại') {
+      if (errorMessage === 'Người dùng không tồn tại' || 
+          errorMessage === 'Homestay không tồn tại') {
         return res.status(404).json(createResponse(false, errorMessage));
       }
 
-      if (errorMessage === 'Homestay không tồn tại') {
-        return res.status(404).json(createResponse(false, errorMessage));
-      }
-
-      if (errorMessage.includes('Ngày check-in') || errorMessage.includes('Số lượng khách')) {
+      if (errorMessage.includes('Ngày check-in') || 
+          errorMessage.includes('Số lượng khách') ||
+          errorMessage.includes('không còn trống')) {
         return res.status(400).json(createResponse(false, errorMessage));
       }
     }
@@ -51,13 +76,16 @@ export const createBooking = async (req: Request, res: Response) => {
 export const getUserBookings = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json(createResponse(false, 'Yêu cầu đăng nhập'));
+    if (!userId || !Types.ObjectId.isValid(userId)) {
+      return res.status(401).json(createResponse(false, 'Yêu cầu xác thực hoặc ID người dùng không hợp lệ'));
     }
 
-    const bookings = await bookingService.getUserBookings(userId);
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 10));
+    const status = req.query.status as BookingStatus;
 
-    return res.json(createResponse(true, 'Lấy danh sách đặt phòng thành công', bookings));
+    const result = await bookingService.getBookings({ userId, page, limit, status });
+    return res.json(createResponse(true, 'Lấy danh sách đặt phòng thành công', result));
   } catch (error) {
     console.error('Lỗi lấy danh sách đặt phòng:', error);
     return res.status(500).json(createResponse(false, 'Lỗi khi lấy danh sách đặt phòng'));
@@ -70,24 +98,27 @@ export const getUserBookings = async (req: Request, res: Response) => {
 export const getBookingById = async (req: Request, res: Response) => {
   try {
     const bookingId = req.params.id;
-    const booking = await bookingService.getBookingById(bookingId);
+    if (!Types.ObjectId.isValid(bookingId)) {
+      return res.status(400).json(createResponse(false, 'ID đặt phòng không hợp lệ'));
+    }
 
-    // Kiểm tra quyền truy cập (chỉ người đặt hoặc admin mới có thể xem)
+    const booking = await bookingService.getBookingById(bookingId);
+    if (!booking) {
+      return res.status(404).json(createResponse(false, 'Đặt phòng không tồn tại'));
+    }
+
+    // Kiểm tra quyền truy cập (chỉ người đặt, chủ homestay hoặc admin mới có thể xem)
     const userId = req.user?.id;
     const isAdmin = req.user?.role === 'admin';
+    const isHost = (booking.homestayId as any)?.hostId?._id?.toString() === userId;
 
-    if (!isAdmin && booking.userId !== userId) {
+    if (!isAdmin && !isHost && booking.userId.toString() !== userId) {
       return res.status(403).json(createResponse(false, 'Không có quyền truy cập thông tin đặt phòng này'));
     }
 
     return res.json(createResponse(true, 'Lấy thông tin đặt phòng thành công', booking));
   } catch (error) {
     console.error('Lỗi lấy thông tin đặt phòng:', error);
-
-    if (error instanceof Error && error.message === 'Đặt phòng không tồn tại') {
-      return res.status(404).json(createResponse(false, error.message));
-    }
-
     return res.status(500).json(createResponse(false, 'Lỗi khi lấy thông tin đặt phòng'));
   }
 };
@@ -98,8 +129,11 @@ export const getBookingById = async (req: Request, res: Response) => {
 export const verifyBooking = async (req: Request, res: Response) => {
   try {
     const token = req.params.token;
-    const booking = await bookingService.verifyBooking(token);
+    if (!token || token.length < 10) {
+      return res.status(400).json(createResponse(false, 'Token không hợp lệ'));
+    }
 
+    const booking = await bookingService.verifyBooking(token);
     return res.json(
       createResponse(
         true,
@@ -111,8 +145,12 @@ export const verifyBooking = async (req: Request, res: Response) => {
     console.error('Lỗi xác nhận đặt phòng:', error);
 
     if (error instanceof Error) {
-      if (error.message.includes('Token không hợp lệ') || error.message.includes('Token đã hết hạn')) {
+      if (error.message.includes('Token không hợp lệ') || 
+          error.message.includes('Token đã hết hạn')) {
         return res.status(400).json(createResponse(false, error.message));
+      }
+      if (error.message.includes('không tồn tại')) {
+        return res.status(404).json(createResponse(false, error.message));
       }
     }
 
@@ -121,22 +159,36 @@ export const verifyBooking = async (req: Request, res: Response) => {
 };
 
 /**
- * Cập nhật trạng thái đặt phòng (cho admin)
+ * Cập nhật trạng thái đặt phòng (cho admin/host)
  */
 export const updateBookingStatus = async (req: Request, res: Response) => {
   try {
-    // Kiểm tra quyền admin - middleware đã xử lý việc này
     const bookingId = req.params.id;
+    if (!Types.ObjectId.isValid(bookingId)) {
+      return res.status(400).json(createResponse(false, 'ID đặt phòng không hợp lệ'));
+    }
+
     const updateStatusDto: UpdateBookingStatusDto = req.body;
+    if (!Object.values(BookingStatus).includes(updateStatusDto.status)) {
+      return res.status(400).json(createResponse(false, 'Trạng thái đặt phòng không hợp lệ'));
+    }
 
-    const booking = await bookingService.updateBookingStatus(bookingId, updateStatusDto);
-
+    const booking = await bookingService.updateBookingStatus(bookingId, updateStatusDto.status);
     return res.json(createResponse(true, 'Cập nhật trạng thái đặt phòng thành công', booking));
   } catch (error) {
     console.error('Lỗi cập nhật trạng thái đặt phòng:', error);
 
-    if (error instanceof Error && error.message === 'Đặt phòng không tồn tại') {
-      return res.status(404).json(createResponse(false, error.message));
+    if (error instanceof Error) {
+      const errorMessage = error.message;
+
+      if (errorMessage === 'Đặt phòng không tồn tại') {
+        return res.status(404).json(createResponse(false, errorMessage));
+      }
+
+      if (errorMessage.includes('không thể thay đổi') || 
+          errorMessage.includes('không thể xác nhận')) {
+        return res.status(400).json(createResponse(false, errorMessage));
+      }
     }
 
     return res.status(500).json(createResponse(false, 'Lỗi khi cập nhật trạng thái đặt phòng'));
@@ -149,14 +201,24 @@ export const updateBookingStatus = async (req: Request, res: Response) => {
 export const confirmPayment = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json(createResponse(false, 'Yêu cầu đăng nhập để xác nhận thanh toán'));
+    if (!userId || !Types.ObjectId.isValid(userId)) {
+      return res.status(401).json(createResponse(false, 'Yêu cầu xác thực hoặc ID người dùng không hợp lệ'));
     }
 
     const bookingId = req.params.id;
+    if (!Types.ObjectId.isValid(bookingId)) {
+      return res.status(400).json(createResponse(false, 'ID đặt phòng không hợp lệ'));
+    }
 
-    // Cập nhật trạng thái thanh toán thành "đang chờ xác nhận"
-    const booking = await bookingService.confirmUserPayment(userId, bookingId);
+    const { paymentMethod, paymentReference } = req.body;
+    if (!paymentMethod) {
+      return res.status(400).json(createResponse(false, 'Phương thức thanh toán không được để trống'));
+    }
+
+    const booking = await bookingService.confirmUserPayment(userId, bookingId, {
+      paymentMethod,
+      paymentReference
+    });
 
     return res.status(200).json(
       createResponse(
@@ -180,7 +242,6 @@ export const confirmPayment = async (req: Request, res: Response) => {
       }
 
       if (errorMessage === 'Đặt phòng chưa được xác nhận' ||
-          errorMessage === 'Trạng thái đặt phòng không hợp lệ để xác nhận thanh toán' ||
           errorMessage === 'Đặt phòng đã được thanh toán') {
         return res.status(400).json(createResponse(false, errorMessage));
       }

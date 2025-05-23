@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs/promises';
-import { AppDataSource } from './config/database';
+import { connectMongoDB } from './config/mongodb';
 import routes from './routes/route';
 
 const app = express();
@@ -30,10 +30,12 @@ app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// Connect to database
-AppDataSource.initialize()
-  .then(() => {
-    console.log('Data Source has been initialized!');
+// Connect to MongoDB and start server
+const startServer = async () => {
+  try {
+    // Connect to MongoDB
+    await connectMongoDB();
+    
     // Routes
     app.use('/api', routes);
 
@@ -41,13 +43,17 @@ AppDataSource.initialize()
     app.get('/health', (req, res) => {
       res.status(200).json({ status: 'ok' });
     });
+    
     // Start server
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
     });
-  })
-  .catch(err => {
-    console.error('Error during Data Source initialization:', err);
-  });
+  } catch (error) {
+    console.error('Error starting server:', error);
+    process.exit(1);
+  }
+};
+
+startServer();
 
 export default app;

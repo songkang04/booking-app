@@ -1,21 +1,20 @@
 {
   "name": "booking-app-be",
   "version": "1.0.0",
-  "description": "A simple Express.js API with MySQL database integration.",
+  "description": "A simple Express.js API with MongoDB database integration.",
   "main": "src/app.ts",
   "scripts": {
     "start": "node dist/app.js",
     "dev": "nodemon src/app.ts",
     "build": "tsc",
-    "typeorm": "typeorm-ts-node-commonjs",
-    "migration:create": "npm run typeorm -- migration:create src/migrations/Migration",
-    "migration:run": "npm run typeorm -- migration:run -d src/config/database.ts",
-    "migration:revert": "npm run typeorm -- migration:revert -d src/config/database.ts",
     "format": "prettier --write \"src/**/*.ts\"",
     "lint": "prettier --check \"src/**/*.ts\"",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
-    "docker:logs": "docker-compose logs -f"
+    "docker:logs": "docker-compose logs -f",
+    "init:mongodb": "ts-node scripts/init-mongodb-data.ts",
+    "test:mongodb": "node src/utils/test-mongodb.js",
+    "simple:init": "node scripts/simple-init.js"
   },
   "dependencies": {
     "@types/cors": "^2.8.17",
@@ -25,15 +24,16 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dayjs": "^1.11.13",
+    "dotenv": "^16.5.0",
     "express": "^4.17.1",
     "express-validator": "^7.2.1",
     "jsonwebtoken": "^9.0.2",
-    "mysql2": "^2.3.3",
+    "mongoose": "^8.15.0",
+    "mongoose-delete": "^1.0.2",
+    "mongoose-paginate-v2": "^1.9.0",
     "nodemailer": "^6.10.0",
     "qrcode": "^1.5.4",
-    "reflect-metadata": "^0.2.2",
-    "ts-node": "^10.9.2",
-    "typeorm": "^0.3.21"
+    "reflect-metadata": "^0.2.2"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
@@ -45,6 +45,7 @@
     "@types/qrcode": "^1.5.5",
     "nodemon": "^2.0.7",
     "prettier": "^3.5.3",
+    "ts-node": "^10.9.2",
     "typescript": "^4.3.2"
   },
   "license": "MIT"

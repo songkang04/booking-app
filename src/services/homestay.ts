@@ -1,219 +1,248 @@
-import { Between, ILike, Repository } from 'typeorm';
-import { AppDataSource } from '../config/database';
-import { Homestay, HomestayStatus } from '../models/homestay';
-import { User, UserRole } from '../models/user';
-import type { CreateHomestayDto, UpdateHomestayDto, HomestaySearchParams } from '../dtos/homestay';
-import { AllAmenities, isValidAmenity } from '../constants/amenities';
+import { Homestay, IHomestay } from '../schemas/homestay.schema';
+import { User } from '../schemas/user.schema';
+import { Booking, BookingStatus } from '../schemas/booking.schema';
+import { FilterQuery } from 'mongoose';
+
+// Interface cho query để đảm bảo type safety
+interface HomestayQuery extends FilterQuery<IHomestay> {
+  isActive: boolean;
+  $text?: { $search: string };
+  city?: string;
+  province?: string;
+  price?: { $gte?: number; $lte?: number };
+  capacity?: { $gte: number };
+  amenities?: { $all: string[] };
+  hostId?: string;
+  _id?: { $nin: string[] };
+}
+
+export interface HomestayQueryOptions {
+  search?: string;
+  city?: string;
+  province?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  capacity?: number;
+  amenities?: string[];
+  checkInDate?: Date;
+  checkOutDate?: Date;
+  page?: number;
+  limit?: number;
+  hostId?: string;
+}
 
 class HomestayService {
-  private homestayRepository: Repository<Homestay>;
-  private userRepository: Repository<User>;
+  async createHomestay(homestayData: Partial<IHomestay>): Promise<IHomestay> {
+    // Kiểm tra xem host có tồn tại không
+    if (homestayData.hostId) {
+      const host = await User.findById(homestayData.hostId);
+      if (!host) {
+        throw new Error('Không tìm thấy thông tin chủ homestay');
+      }
+    }
 
-  constructor() {
-    this.homestayRepository = AppDataSource.getRepository(Homestay);
-    this.userRepository = AppDataSource.getRepository(User);
+    const homestay = new Homestay(homestayData);
+    return homestay.save();
   }
 
-  async createHomestay(ownerId: number, createData: CreateHomestayDto): Promise<Homestay> {
-    const owner = await this.userRepository.findOneBy({ id: ownerId });
-    if (!owner || owner.role !== UserRole.ADMIN) {
-      throw new Error('Unauthorized: Only admins can create homestays');
-    }
-
-    // Đảm bảo chỉ lưu các tiện nghi hợp lệ
-    if (createData.amenities && createData.amenities.length > 0) {
-      createData.amenities = createData.amenities.filter(amenity => isValidAmenity(amenity));
-    }
-
-    const homestay = this.homestayRepository.create({
-      ...createData,
-      ownerID: ownerId,
-    });
-
-    return await this.homestayRepository.save(homestay);
+  async getHomestayById(id: string): Promise<IHomestay | null> {
+    return Homestay.findById(id).populate('hostId', 'firstName lastName email');
   }
 
   async updateHomestay(
-    homestayId: number,
-    ownerId: number,
-    updateData: UpdateHomestayDto
-  ): Promise<Homestay> {
-    const homestay = await this.homestayRepository.findOne({
-      where: { id: homestayId },
-      relations: ['owner'],
+    id: string,
+    homestayData: Partial<IHomestay>
+  ): Promise<IHomestay | null> {
+    return Homestay.findByIdAndUpdate(
+      id,
+      { $set: homestayData },
+      { new: true }
+    );
+  }
+
+  async deleteHomestay(id: string): Promise<boolean> {
+    // Kiểm tra xem có đặt phòng nào liên quan đến homestay này không
+    const existingBookings = await Booking.findOne({
+      homestayId: id,
+      status: { $in: [BookingStatus.CONFIRMED, BookingStatus.PENDING] },
     });
 
-    if (!homestay) {
-      throw new Error('Homestay not found');
+    if (existingBookings) {
+      throw new Error('Không thể xóa homestay này vì có đặt phòng liên quan');
     }
 
-    if (homestay.ownerID !== ownerId) {
-      throw new Error('Unauthorized: You can only update your own homestays');
-    }
-
-    // Đảm bảo chỉ lưu các tiện nghi hợp lệ
-    if (updateData.amenities && updateData.amenities.length > 0) {
-      updateData.amenities = updateData.amenities.filter(amenity => isValidAmenity(amenity));
-    }
-
-    Object.assign(homestay, updateData);
-    return await this.homestayRepository.save(homestay);
+    const result = await Homestay.deleteOne({ _id: id });
+    return result.deletedCount === 1;
   }
 
-  async deleteHomestay(homestayId: number, ownerId: number): Promise<void> {
-    const homestay = await this.homestayRepository.findOneBy({ id: homestayId });
-
-    if (!homestay) {
-      throw new Error('Homestay not found');
-    }
-
-    if (homestay.ownerID !== ownerId) {
-      throw new Error('Unauthorized: You can only delete your own homestays');
-    }
-
-    await this.homestayRepository.remove(homestay);
-  }
-
-  async getHomestay(homestayId: number): Promise<Homestay> {
-    const homestay = await this.getHomestayById(homestayId);
-
-    if (!homestay) {
-      throw new Error('Homestay not found');
-    }
-
-    return homestay;
-  }
-
-  async getHomestayById(id: number): Promise<Homestay | null> {
+  async searchHomestays(options: HomestayQueryOptions): Promise<{
+    homestays: IHomestay[];
+    total: number;
+    page: number;
+    limit: number;
+    pages: number;
+  }> {
     try {
-      const homestay = await this.homestayRepository.findOne({
-        where: { id, status: HomestayStatus.ACTIVE },
-        relations: ['owner'],
-      });
+      const {
+        search,
+        city,
+        province,
+        minPrice,
+        maxPrice,
+        capacity,
+        amenities,
+        checkInDate,
+        checkOutDate,
+        page = 1,
+        limit = 10,
+        hostId,
+      } = options;
 
-      return homestay;
-    } catch (error) {
-      console.error('Lỗi khi lấy thông tin homestay:', error);
-      throw new Error('Không thể lấy thông tin homestay');
-    }
-  }
-
-  async getSimilarHomestays(id: number, limit: number = 4): Promise<Homestay[]> {
-    try {
-      const homestay = await this.getHomestayById(id);
-
-      if (!homestay) {
-        return [];
+      // Validate input
+      if (page < 1 || limit < 1) {
+        throw new Error('Invalid pagination parameters');
       }
 
-      // Tìm homestay tương tự dựa trên location và tầm giá ±30%
-      const minPrice = homestay.price * 0.7;
-      const maxPrice = homestay.price * 1.3;
+      if (checkInDate && checkOutDate && new Date(checkInDate) >= new Date(checkOutDate)) {
+        throw new Error('Invalid date range');
+      }
 
-      const query = this.homestayRepository.createQueryBuilder('homestay')
-        .where('homestay.id != :id', { id })
-        .andWhere('homestay.status = :status', { status: HomestayStatus.ACTIVE })
-        .andWhere('homestay.location = :location', { location: homestay.location })
-        .andWhere('homestay.price BETWEEN :minPrice AND :maxPrice', { minPrice, maxPrice })
-        .orderBy('RANDOM()')
-        .take(limit);
+      const query: HomestayQuery = { isActive: true };
 
-      return await query.getMany();
-    } catch (error) {
-      console.error('Lỗi khi lấy danh sách homestay tương tự:', error);
-      return [];
+      if (search) {
+        query.$text = { $search: search };
+      }
+
+      if (city) {
+        query.city = city;
+      }
+
+      if (province) {
+        query.province = province;
+      }
+
+      if (minPrice !== undefined || maxPrice !== undefined) {
+        query.price = {};
+        if (minPrice !== undefined) query.price.$gte = minPrice;
+        if (maxPrice !== undefined) query.price.$lte = maxPrice;
+      }
+
+      if (capacity) {
+        query.capacity = { $gte: capacity };
+      }
+
+      if (amenities?.length) {
+        query.amenities = { $all: amenities };
+      }
+
+      if (hostId) {
+        query.hostId = hostId;
+      }
+
+      const skip = (page - 1) * limit;
+
+      // Handle date filtering
+      if (checkInDate && checkOutDate) {
+        const overlappingBookings = await Booking.find({
+          status: { $in: [BookingStatus.CONFIRMED, BookingStatus.PENDING] },
+          $or: [
+            {
+              checkInDate: { $lte: new Date(checkInDate) },
+              checkOutDate: { $gt: new Date(checkInDate) },
+            },
+            {
+              checkInDate: { $lt: new Date(checkOutDate) },
+              checkOutDate: { $gte: new Date(checkOutDate) },
+            },
+            {
+              checkInDate: { $gte: new Date(checkInDate) },
+              checkOutDate: { $lte: new Date(checkOutDate) },
+            },
+          ],
+        }).select('homestayId');
+
+        const bookedHomestayIds = overlappingBookings.map(booking => 
+          booking.homestayId.toString()
+        );
+
+        if (bookedHomestayIds.length) {
+          query._id = { $nin: bookedHomestayIds };
+        }
+      }
+
+      // Optimize by running queries in parallel
+      const [total, homestays] = await Promise.all([
+        Homestay.countDocuments(query),
+        Homestay.find(query)
+          .select(search ? { score: { $meta: 'textScore' } } : {})
+          .sort(search ? { score: { $meta: 'textScore' } } : { createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .populate('hostId', 'firstName lastName email')
+          .lean()
+      ]);
+
+      const pages = Math.ceil(total / limit);
+
+      return {
+        homestays,
+        total,
+        page,
+        limit,
+        pages,
+      };
+    } catch (error: any) {
+      throw new Error(`Error searching homestays: ${error.message}`);
     }
   }
 
-  async searchHomestays(params: HomestaySearchParams) {
-    const {
-      minPrice,
-      maxPrice,
-      location,
-      name,
-      amenities,
-      status,
-      page = 1,
-      limit = 10,
-      sortBy = 'createdAt',
-      sortOrder = 'DESC',
-    } = params;
+  async getFeaturedHomestays(limit: number = 6): Promise<IHomestay[]> {
+    // Lấy homestay có điểm đánh giá cao
+    return Homestay.find({ isActive: true })
+      .sort({ rating: -1 })
+      .limit(limit)
+      .populate('hostId', 'firstName lastName email');
+  }
 
-    console.log('Search params received:', params);
+  async getPopularLocations(): Promise<{ city: string; count: number }[]> {
+    return Homestay.aggregate([
+      { $match: { isActive: true } },
+      { $group: { _id: '$city', count: { $sum: 1 } } },
+      { $project: { city: '$_id', count: 1, _id: 0 } },
+      { $sort: { count: -1 } },
+      { $limit: 5 }
+    ]);
+  }
 
-    const query = this.homestayRepository.createQueryBuilder('homestay');
+  async updateHomestayRating(homestayId: string): Promise<void> {
+    // Tính toán lại điểm đánh giá dựa trên reviews
+    const result = await Booking.aggregate([
+      {
+        $match: {
+          homestayId: homestayId,
+          rating: { $exists: true, $ne: null }
+        }
+      },
+      {
+        $group: {
+          _id: '$homestayId',
+          averageRating: { $avg: '$rating' },
+          reviewCount: { $sum: 1 }
+        }
+      }
+    ]);
 
-    // Add price filter
-    if (minPrice !== undefined || maxPrice !== undefined) {
-      query.andWhere('homestay.price BETWEEN :minPrice AND :maxPrice', {
-        minPrice: minPrice || 0,
-        maxPrice: maxPrice || Number.MAX_SAFE_INTEGER,
+    if (result.length > 0) {
+      const { averageRating, reviewCount } = result[0];
+      await Homestay.findByIdAndUpdate(homestayId, {
+        rating: averageRating,
+        reviewCount
       });
     }
-
-    // Add location filter
-    if (location) {
-      query.andWhere('LOWER(homestay.address) LIKE LOWER(:location)', { location: `%${location}%` });
-    }
-
-    // Add name filter
-    if (name) {
-      console.log('Searching by name:', name);
-      query.andWhere('LOWER(homestay.name) LIKE LOWER(:name)', { name: `%${name}%` });
-    }
-
-    // Add amenities filter
-    if (amenities && amenities.length > 0) {
-      console.log('Tìm kiếm theo tiện nghi:', amenities);
-
-      // Chỉ tìm kiếm các tiện nghi hợp lệ
-      const validAmenities = amenities.filter(amenity => isValidAmenity(amenity));
-
-      // Sử dụng LIKE cho mỗi tiện nghi - cách tiếp cận tương thích hơn
-      validAmenities.forEach((amenity, index) => {
-        query.andWhere(`homestay.amenities LIKE :amenity${index}`, { [`amenity${index}`]: `%${amenity}%` });
-      });
-    }
-
-    // Add status filter
-    if (status) {
-      query.andWhere('homestay.status = :status', { status });
-    }
-
-    // Add sorting
-    query.orderBy(`homestay.${sortBy}`, sortOrder);
-
-    // Add pagination
-    query.skip((page - 1) * limit).take(limit);
-
-    // Log the final query
-    console.log('Final query:', query.getSql());
-
-    // Get results
-    const [homestays, total] = await query.getManyAndCount();
-    console.log(`Found ${total} homestays`);
-
-    return {
-      homestays,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
-    };
   }
 
-  async getOwnerHomestays(ownerId: number) {
-    return await this.homestayRepository.find({
-      where: { ownerID: ownerId },
-      order: { createdAt: 'DESC' },
-    });
-  }
-
-  /**
-   * Đếm tổng số homestay
-   */
   async countHomestays(): Promise<number> {
-    return this.homestayRepository.count();
+    return Homestay.countDocuments({ isActive: true });
   }
 }
 

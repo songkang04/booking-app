@@ -1,7 +1,8 @@
 import nodemailer from 'nodemailer';
-import { User } from '../models/user';
 import fs from 'fs';
 import path from 'path';
+import type { IUser } from '../schemas/user.schema';
+import "dotenv/config";
 
 class EmailService {
   private transporter: nodemailer.Transporter;
@@ -15,15 +16,26 @@ class EmailService {
     this.frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     this.templateDir = path.join(__dirname, '../templates/emails');
 
+    // Kiểm tra biến môi trường bắt buộc
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
+      console.error('[EMAIL SERVICE] ❌ Thiếu thông tin xác thực email:', {
+        EMAIL_USER: process.env.EMAIL_USER ? 'Đã cấu hình' : 'Chưa cấu hình',
+        EMAIL_PASSWORD: process.env.EMAIL_PASSWORD ? 'Đã cấu hình' : 'Chưa cấu hình'
+      });
+      throw new Error('EMAIL_USER và EMAIL_PASSWORD là bắt buộc');
+    }
+
     // Khởi tạo transporter cho nodemailer
     this.transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.EMAIL_PORT || '587'),
-      secure: process.env.EMAIL_SECURE === 'true',
+      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
       auth: {
-        user: process.env.EMAIL_USER || '',
-        pass: process.env.EMAIL_PASSWORD || '',
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASSWORD
       },
+      debug: process.env.NODE_ENV === 'development'
     });
 
     // Kiểm tra kết nối khi khởi tạo (trong môi trường development)
@@ -76,7 +88,7 @@ class EmailService {
   /**
    * Gửi email đặt lại mật khẩu
    */
-  async sendPasswordResetEmail(user: User, resetToken: string): Promise<boolean> {
+  async sendPasswordResetEmail(user: IUser, resetToken: string): Promise<boolean> {
     const resetUrl = `${this.frontendUrl}/reset-password?token=${resetToken}`;
 
     try {
@@ -103,7 +115,7 @@ class EmailService {
   /**
    * Gửi email xác nhận đặt lại mật khẩu thành công
    */
-  async sendPasswordResetConfirmation(user: User): Promise<boolean> {
+  async sendPasswordResetConfirmation(user: IUser): Promise<boolean> {
     try {
       const html = await this.loadTemplate('reset-password-confirmation', {
         firstName: user.firstName,
@@ -127,14 +139,17 @@ class EmailService {
   /**
    * Gửi email xác thực tài khoản
    */
-  async sendVerificationEmail(user: User, verificationToken: string): Promise<boolean> {
+  async sendVerificationEmail(user: IUser, verificationToken: string): Promise<boolean> {
     const verificationUrl = `${this.frontendUrl}/verify-email?token=${verificationToken}`;
 
     console.log('🔄 Đang chuẩn bị gửi email xác thực cho:', user.email);
     console.log('🔗 URL xác thực:', verificationUrl);
 
     try {
-      // Sử dụng template hiện có hoặc tạo nội dung email trực tiếp
+      // Kiểm tra lại kết nối SMTP trước khi gửi
+      await this.transporter.verify();
+      
+      // Chuẩn bị HTML content
       let html;
       try {
         html = await this.loadTemplate('email-verification', {
@@ -143,10 +158,7 @@ class EmailService {
         });
         console.log('✅ Đã tải template email-verification thành công');
       } catch (error) {
-        console.error('❌ Lỗi khi tải template email-verification:', error);
         console.log('⚠️ Sử dụng template HTML cơ bản thay thế');
-
-        // Nếu không có template, sử dụng HTML cơ bản
         html = `
           <div>
             <h1>Xác thực tài khoản</h1>
@@ -160,28 +172,42 @@ class EmailService {
         `;
       }
 
-      const mailOptions = {
+      console.log('📧 Chuẩn bị gửi email với cấu hình:', {
+        from: this.fromEmail,
+        to: user.email,
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASSWORD ? '***' : 'missing'
+        }
+      });
+
+      const info = await this.transporter.sendMail({
         from: this.fromEmail,
         to: user.email,
         subject: 'Xác thực tài khoản của bạn',
         html,
-      };
+      });
 
-      console.log('🔄 Đang gửi email xác thực đến:', user.email);
-      const info = await this.transporter.sendMail(mailOptions);
       console.log('✅ Email xác thực đã được gửi:', info.messageId);
       console.log('📧 Thông tin chi tiết:', info);
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Lỗi gửi email xác thực:', error);
-      return false;
+
+      if (error.code === 'EAUTH') {
+        console.error('🔐 Lỗi xác thực: Kiểm tra lại EMAIL_USER và EMAIL_PASSWORD trong .env');
+      } else if (error.code === 'ESOCKET') {
+        console.error('🔌 Lỗi kết nối: Kiểm tra lại kết nối mạng và cấu hình SMTP');
+      }
+
+      throw error; // Throw error để service gọi đến có thể xử lý
     }
   }
 
   /**
    * Gửi email xác nhận xác thực tài khoản thành công
    */
-  async sendVerificationConfirmation(user: User): Promise<boolean> {
+  async sendVerificationConfirmation(user: IUser): Promise<boolean> {
     try {
       // Sử dụng template hiện có hoặc tạo nội dung email trực tiếp
       let html;
@@ -220,7 +246,7 @@ class EmailService {
    * Gửi email xác nhận đặt phòng
    */
   async sendBookingConfirmation(
-    user: User,
+    user: IUser,
     verificationToken: string,
     bookingDetails: {
       homestayName: string;
@@ -306,7 +332,7 @@ class EmailService {
    * Gửi email thông báo đặt phòng thành công
    */
   async sendBookingSuccessNotification(
-    user: User,
+    user: IUser,
     bookingDetails: {
       homestayName: string;
       homestayAddress: string;

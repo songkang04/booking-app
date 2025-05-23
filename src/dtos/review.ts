@@ -1,5 +1,5 @@
 export interface CreateReviewDto {
-  homestayId: number;
+  homestayId: string;
   rating: number;
   comment: string;
 }
@@ -10,24 +10,23 @@ export interface UpdateReviewDto {
 }
 
 export interface ReviewResponse {
-  id: number;
-  userId: number;
-  homestayId: number;
+  id: string;
+  userId: string;
+  homestayId: string;
   rating: number;
   comment: string;
   response?: string;
   createdAt: Date;
   updatedAt: Date;
   user: {
-    id: number;
+    id: string;
     fullName: string;
-    avatar?: string;
+    profilePicture?: string;
   };
 }
 
 export interface ReviewSearchParams {
-  homestayId?: number;
-  userId?: number;
+  userId?: string;
   minRating?: number;
   maxRating?: number;
   page?: number;

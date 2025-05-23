@@ -1,14 +1,12 @@
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
-import { MoreThan } from 'typeorm';
-import { AppDataSource } from '../config/database';
 import emailService from '../config/mail';
-import { User, UserRole } from '../models/user';
+import { User, IUser, UserRole } from '../schemas/user.schema';
 import { AUTH_CONSTANTS } from '../utils/constant';
 
 interface ForgotPasswordResult {
-  user?: User;
+  user?: IUser;
   resetToken?: string;
   emailSent: boolean;
   onCooldown: boolean;
@@ -16,18 +14,16 @@ interface ForgotPasswordResult {
 }
 
 class AuthService {
-  private userRepository = AppDataSource.getRepository(User);
-
   async register(
     firstName: string,
     lastName: string,
     email: string,
     password: string
-  ): Promise<User> {
+  ): Promise<IUser> {
     console.log(`[AUTH SERVICE] Đăng ký người dùng mới: ${email}`);
 
     // Kiểm tra email đã tồn tại chưa
-    const existingUser = await this.userRepository.findOneBy({ email });
+    const existingUser = await User.findOne({ email });
     if (existingUser) {
       console.log(`[AUTH SERVICE] ⚠️ Email đã được sử dụng: ${email}`);
       throw new Error('Email đã được sử dụng');
@@ -42,11 +38,11 @@ class AuthService {
     expiryDate.setHours(expiryDate.getHours() + 24);
 
     // Tạo người dùng mới
-    const user = this.userRepository.create({
+    const user = new User({
       firstName,
       lastName,
       email,
-      password, // Sẽ được mã hóa bởi hook BeforeInsert của entity
+      password, // Sẽ được mã hóa bởi middleware pre save của schema
       role: UserRole.USER,
       emailVerificationToken: verificationToken,
       emailVerificationExpires: expiryDate,
@@ -54,8 +50,8 @@ class AuthService {
     });
 
     console.log(`[AUTH SERVICE] 🔄 Đang lưu người dùng vào database...`);
-    const savedUser = await this.userRepository.save(user);
-    console.log(`[AUTH SERVICE] ✅ Đã lưu người dùng: ID=${savedUser.id}`);
+    const savedUser = await user.save();
+    console.log(`[AUTH SERVICE] ✅ Đã lưu người dùng: ID=${savedUser._id}`);
 
     // Gửi email xác thực
     console.log(`[AUTH SERVICE] 🔄 Bắt đầu gửi email xác thực...`);
@@ -73,20 +69,16 @@ class AuthService {
     return savedUser;
   }
 
-  async login(email: string, password: string): Promise<User> {
+  async login(email: string, password: string): Promise<IUser> {
     // Tìm người dùng và lấy cả mật khẩu để xác thực
-    const user = await this.userRepository
-      .createQueryBuilder('user')
-      .addSelect('user.password')
-      .where('user.email = :email', { email })
-      .getOne();
+    const user = await User.findOne({ email }).select('+password');
 
     if (!user) {
       throw new Error('Thông tin đăng nhập không hợp lệ.');
     }
 
     // Xác thực mật khẩu
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
       throw new Error('Thông tin đăng nhập không hợp lệ');
     }
@@ -94,13 +86,13 @@ class AuthService {
     return user;
   }
 
-  async getUserById(userId: number): Promise<User | null> {
-    return this.userRepository.findOneBy({ id: userId });
+  async getUserById(userId: string): Promise<IUser | null> {
+    return User.findById(userId);
   }
 
-  generateToken(user: User): string {
+  generateToken(user: IUser): string {
     const payload = {
-      userId: user.id,
+      userId: user._id,
       email: user.email,
       role: user.role,
     };
@@ -113,7 +105,7 @@ class AuthService {
 
   async forgotPassword(email: string): Promise<ForgotPasswordResult> {
     // Tìm người dùng theo email
-    const user = await this.userRepository.findOneBy({ email });
+    const user = await User.findOne({ email });
 
     // Nếu không tìm thấy người dùng
     if (!user) {
@@ -122,13 +114,13 @@ class AuthService {
 
     // Kiểm tra xem người dùng có đang trong thời gian chờ không
     const now = new Date();
-    if (user.lastPasswordResetRequest) {
+    if (user.passwordResetExpires) {
       const cooldownMinutes = AUTH_CONSTANTS.PASSWORD_RESET_COOLDOWN_MINUTES;
-      const cooldownTime = new Date(user.lastPasswordResetRequest.getTime() + cooldownMinutes * 60 * 1000);
+      const cooldownTime = new Date(now.getTime() - cooldownMinutes * 60 * 1000);
 
-      if (now < cooldownTime) {
+      if (user.passwordResetExpires > cooldownTime) {
         // Vẫn đang trong thời gian chờ
-        const remainingMinutes = Math.ceil((cooldownTime.getTime() - now.getTime()) / (60 * 1000));
+        const remainingMinutes = Math.ceil((user.passwordResetExpires.getTime() - now.getTime()) / (60 * 1000));
         return {
           emailSent: false,
           onCooldown: true,
@@ -136,13 +128,6 @@ class AuthService {
         };
       }
     }
-
-    // Kiểm tra số lần yêu cầu reset trong ngày (nếu cần)
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-    // Đếm số lần yêu cầu đặt lại mật khẩu trong ngày
-    // Phần này yêu cầu lưu lịch sử reset mật khẩu trong DB
-    // Giản lược bằng cách chỉ sử dụng cooldown
 
     // Tạo token ngẫu nhiên
     const resetToken = crypto.randomBytes(20).toString('hex');
@@ -152,10 +137,9 @@ class AuthService {
     const expiryDate = new Date(now.getTime() + expiryHours * 60 * 60 * 1000);
 
     // Cập nhật thông tin người dùng
-    user.resetPasswordToken = resetToken;
-    user.resetPasswordExpires = expiryDate;
-    user.lastPasswordResetRequest = now;
-    await this.userRepository.save(user);
+    user.passwordResetToken = resetToken;
+    user.passwordResetExpires = expiryDate;
+    await user.save();
 
     // Gửi email
     const emailSent = await emailService.sendPasswordResetEmail(user, resetToken);
@@ -168,12 +152,11 @@ class AuthService {
     };
   }
 
-  // Cập nhật phương thức resetPassword
-  async resetPassword(token: string, password: string): Promise<User> {
+  async resetPassword(token: string, password: string): Promise<IUser> {
     // Tìm người dùng với token hợp lệ và chưa hết hạn
-    const user = await this.userRepository.findOneBy({
-      resetPasswordToken: token,
-      resetPasswordExpires: MoreThan(new Date()),
+    const user = await User.findOne({
+      passwordResetToken: token,
+      passwordResetExpires: { $gt: new Date() }
     });
 
     if (!user) {
@@ -181,12 +164,11 @@ class AuthService {
     }
 
     // Cập nhật mật khẩu mới
-    user.password = password; // Sẽ được mã hóa bởi hook entity
+    user.password = password; // Sẽ được mã hóa bởi middleware pre save
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
 
-    // Xóa token đặt lại mật khẩu
-    user.resetPasswordToken = '';
-
-    await this.userRepository.save(user);
+    await user.save();
 
     // Gửi email xác nhận
     await emailService.sendPasswordResetConfirmation(user);
@@ -194,12 +176,11 @@ class AuthService {
     return user;
   }
 
-  // Phương thức xác thực email
-  async verifyEmail(token: string): Promise<User> {
+  async verifyEmail(token: string): Promise<IUser> {
     // Tìm người dùng với token hợp lệ và chưa hết hạn
-    const user = await this.userRepository.findOneBy({
+    const user = await User.findOne({
       emailVerificationToken: token,
-      emailVerificationExpires: MoreThan(new Date()),
+      emailVerificationExpires: { $gt: new Date() }
     });
 
     if (!user) {
@@ -208,10 +189,10 @@ class AuthService {
 
     // Cập nhật trạng thái xác thực
     user.isEmailVerified = true;
-    user.emailVerificationToken = ''; // Sử dụng chuỗi rỗng thay vì null
-    user.emailVerificationExpires = new Date(); // Sử dụng ngày hiện tại thay vì null
+    user.emailVerificationToken = undefined;
+    user.emailVerificationExpires = undefined;
 
-    await this.userRepository.save(user);
+    await user.save();
 
     // Gửi email xác nhận
     try {

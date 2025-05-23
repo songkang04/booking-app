@@ -1,457 +1,323 @@
-import { Repository, MoreThan } from 'typeorm';
-import { AppDataSource } from '../config/database';
-import { Booking, BookingStatus, PaymentStatus } from '../models/booking';
-import { User } from '../models/user';
-import { Homestay } from '../models/homestay';
-import { CreateBookingDto, UpdateBookingStatusDto, UpdatePaymentStatusDto } from '../dtos/booking.dto';
-import crypto from 'crypto';
-import emailService from '../config/mail';
-import paymentService from './payment';
+import { Booking, BookingStatus, PaymentStatus, IBooking } from '../schemas/booking.schema';
+import { Homestay, IHomestay } from '../schemas/homestay.schema';
+import { User, IUser } from '../schemas/user.schema';
+import { Types } from 'mongoose';
 
-export class BookingService {
-  private bookingRepository: Repository<Booking>;
-  private userRepository: Repository<User>;
-  private homestayRepository: Repository<Homestay>;
+interface CreateBookingParams {
+  homestayId: string;
+  checkInDate: Date;
+  checkOutDate: Date;
+  guestCount: number;
+  notes?: string;
+}
 
-  constructor() {
-    this.bookingRepository = AppDataSource.getRepository(Booking);
-    this.userRepository = AppDataSource.getRepository(User);
-    this.homestayRepository = AppDataSource.getRepository(Homestay);
-  }
+interface GetBookingsParams {
+  page?: number;
+  limit?: number;
+  status?: BookingStatus;
+}
 
-  /**
-   * Tạo đặt phòng mới và gửi email xác nhận
-   */
-  async createBooking(
-    userId: number,
-    createBookingDto: CreateBookingDto
-  ): Promise<Booking> {
+interface ConfirmPaymentParams {
+  paymentMethod: string;
+  paymentReference?: string;
+}
+
+class BookingService {
+  async createBooking(userId: string, params: CreateBookingParams): Promise<IBooking> {
     // Kiểm tra người dùng tồn tại
-    const user = await this.userRepository.findOneBy({ id: userId });
+    const user = await User.findById(userId);
     if (!user) {
       throw new Error('Người dùng không tồn tại');
     }
 
     // Kiểm tra homestay tồn tại
-    const homestayId = createBookingDto.homestayId;
-    const homestay = await this.homestayRepository.findOneBy({
-      id: homestayId,
-    });
+    const homestay = await Homestay.findById(params.homestayId);
     if (!homestay) {
       throw new Error('Homestay không tồn tại');
     }
 
-    // Kiểm tra ngày check-in phải trước ngày check-out
-    if (createBookingDto.checkInDate >= createBookingDto.checkOutDate) {
-      throw new Error('Ngày check-in phải trước ngày check-out');
+    // Kiểm tra số lượng khách
+    if (params.guestCount > homestay.capacity) {
+      throw new Error(`Homestay chỉ có thể chứa tối đa ${homestay.capacity} khách`);
     }
 
-    // Kiểm tra ngày check-in phải từ hôm nay trở đi
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (new Date(createBookingDto.checkInDate) < today) {
-      throw new Error('Ngày check-in phải từ hôm nay trở đi');
+    // Kiểm tra homestay còn trống trong khoảng thời gian này
+    const isAvailable = await this.checkHomestayAvailability(
+      params.homestayId,
+      params.checkInDate,
+      params.checkOutDate
+    );
+
+    if (!isAvailable) {
+      throw new Error('Homestay không còn trống trong khoảng thời gian này');
     }
 
-    // Kiểm tra thời gian đặt phòng không quá 365 ngày (1 năm)
-    const checkInDate = new Date(createBookingDto.checkInDate);
-    const checkOutDate = new Date(createBookingDto.checkOutDate);
-    const diffTime = Math.abs(checkOutDate.getTime() - checkInDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    // Tính tổng số ngày
+    const days = Math.ceil(
+      (new Date(params.checkOutDate).getTime() - new Date(params.checkInDate).getTime()) 
+      / (1000 * 60 * 60 * 24)
+    );
 
-    if (diffDays > 365) {
-      throw new Error('Thời gian đặt phòng không được quá 365 ngày');
+    if (days <= 0) {
+      throw new Error('Ngày check-out phải sau ngày check-in');
     }
 
-    // Tính tổng giá tiền và đảm bảo không vượt quá giới hạn của decimal(10,2)
-    const maxPrice = 99999999.99; // Giới hạn của decimal(10,2) là 8 chữ số phần nguyên và 2 chữ số phần thập phân
-    const basePrice = homestay.price * diffDays;
-    const totalPrice = Math.min(basePrice, maxPrice);
+    // Tính tổng tiền
+    const totalPrice = homestay.price * days;
 
-    // Tạo token xác nhận
-    const verificationToken = crypto.randomBytes(32).toString('hex');
-    const expiryDate = new Date();
-    expiryDate.setHours(expiryDate.getHours() + 24); // Hết hạn sau 24 giờ
+    // Tạo mã đặt phòng theo format HDBK + 8 ký tự hex
+    const bookingCode = 'HDBK' + Math.random().toString(16).substring(2, 10);
 
     // Tạo đặt phòng mới
-    const booking = new Booking();
-    booking.userId = userId;
-    booking.homestayId = homestayId;
-    booking.checkInDate = checkInDate;
-    booking.checkOutDate = checkOutDate;
-    booking.guestCount = createBookingDto.guestCount;
-    booking.totalPrice = totalPrice;
-    booking.status = BookingStatus.PENDING;
-    booking.notes = createBookingDto.notes || '';
-    booking.verificationToken = verificationToken;
-    booking.expiryDate = expiryDate;
-
-    // Lưu đặt phòng
-    const savedBooking = await this.bookingRepository.save(booking);
-    console.log("🚀 ~ BookingService ~ savedBooking:", savedBooking)
-
-    // Gửi email xác nhận
-    await emailService.sendBookingConfirmation(user, verificationToken, {
-      homestayName: homestay.name,
-      homestayAddress: homestay.address + (homestay.location ? ', ' + homestay.location : ''),
-      checkInDate: checkInDate,
-      checkOutDate: checkOutDate,
-      guestCount: createBookingDto.guestCount,
-      totalPrice: totalPrice,
+    const booking = new Booking({
+      userId: new Types.ObjectId(userId),
+      homestayId: new Types.ObjectId(params.homestayId),
+      checkInDate: params.checkInDate,
+      checkOutDate: params.checkOutDate,
+      guestCount: params.guestCount,
+      totalPrice,
+      notes: params.notes,
+      status: BookingStatus.PENDING,
+      paymentStatus: PaymentStatus.UNPAID,
+      verificationToken: bookingCode,
+      expiryDate: new Date(Date.now() + 24 * 60 * 60 * 1000), // Hết hạn sau 24 giờ
     });
 
-    return savedBooking;
+    await booking.save();
+
+    // Populate thông tin liên quan
+    return booking.populate([
+      { path: 'userId', select: 'firstName lastName email' },
+      { path: 'homestayId', select: 'name address price images' }
+    ]);
   }
 
-  /**
-   * Lấy danh sách đặt phòng của người dùng
-   */
-  async getUserBookings(userId: number): Promise<Booking[]> {
-    return this.bookingRepository.find({
-      where: { userId },
-      relations: ['homestay'],
-      order: { createdAt: 'DESC' },
-    });
+  async getBookings(params: GetBookingsParams & { userId?: string }): Promise<{
+    bookings: IBooking[];
+    total: number;
+    page: number;
+    limit: number;
+    pages: number;
+  }> {
+    const { userId, status, page = 1, limit = 10 } = params;
+    const query: any = {};
+
+    if (userId) {
+      query.userId = new Types.ObjectId(userId);
+    }
+
+    if (status) {
+      query.status = status;
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [bookings, total] = await Promise.all([
+      Booking.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('userId', 'firstName lastName email')
+        .populate('homestayId', 'name address price images'),
+      Booking.countDocuments(query)
+    ]);
+
+    return {
+      bookings,
+      total,
+      page,
+      limit,
+      pages: Math.ceil(total / limit)
+    };
   }
 
-  /**
-   * Lấy chi tiết đặt phòng
-   */
-  async getBookingById(bookingId: string): Promise<Booking> {
-    const booking = await this.bookingRepository.findOne({
-      where: { id: bookingId },
-      relations: ['homestay', 'user'],
+  async getBookingById(id: string): Promise<IBooking | null> {
+    return Booking.findById(id)
+      .populate('userId', 'firstName lastName email')
+      .populate({
+        path: 'homestayId',
+        select: 'name address price images hostId',
+        populate: { path: 'hostId', select: '_id firstName lastName email' }
+      });
+  }
+
+  async verifyBooking(token: string): Promise<IBooking> {
+    const booking = await Booking.findOne({ 
+      verificationToken: token,
+      status: BookingStatus.PENDING
     });
 
     if (!booking) {
-      throw new Error('Đặt phòng không tồn tại');
+      throw new Error('Token không hợp lệ hoặc đặt phòng không tồn tại');
     }
 
-    return booking;
-  }
-
-  /**
-   * Xác nhận đặt phòng
-   */
-  async verifyBooking(token: string): Promise<Booking> {
-    // Tìm đặt phòng theo token và chưa hết hạn
-    const now = new Date();
-    const booking = await this.bookingRepository.findOne({
-      where: {
-        verificationToken: token,
-        expiryDate: MoreThan(now),
-        status: BookingStatus.PENDING,
-      },
-      relations: ['homestay', 'user'],
-    });
-
-    if (!booking) {
-      throw new Error(
-        'Token không hợp lệ hoặc đã hết hạn hoặc đặt phòng đã được xác nhận'
-      );
+    if (booking.expiryDate && booking.expiryDate < new Date()) {
+      throw new Error('Token đã hết hạn');
     }
 
-    // Cập nhật trạng thái đặt phòng thành CONFIRMED
     booking.status = BookingStatus.CONFIRMED;
-    booking.verificationToken = ''; // Xóa token sau khi xác nhận
-    const updatedBooking = await this.bookingRepository.save(booking);
+    booking.verificationToken = undefined;
+    booking.expiryDate = undefined;
 
-    // Gửi email thông báo đặt phòng thành công
-    await emailService.sendBookingSuccessNotification(booking.user, {
-      homestayName: booking.homestay.name,
-      homestayAddress: booking.homestay.address + (booking.homestay.location ? ', ' + booking.homestay.location : ''),
-      checkInDate: booking.checkInDate,
-      checkOutDate: booking.checkOutDate,
-      guestCount: booking.guestCount,
-      totalPrice: booking.totalPrice,
-      bookingId: booking.id,
-    });
-
-    // Tạo thông tin thanh toán và mã QR cho đặt phòng
-    try {
-      const bookingWithPayment = await paymentService.generatePaymentInfo(updatedBooking.id);
-      return bookingWithPayment;
-    } catch (error) {
-      console.error('Lỗi khi tạo thông tin thanh toán:', error);
-      return updatedBooking;
-    }
+    await booking.save();
+    return booking.populate([
+      { path: 'userId', select: 'firstName lastName email' },
+      { path: 'homestayId', select: 'name address price images' }
+    ]);
   }
 
-  /**
-   * Cập nhật trạng thái đặt phòng
-   */
-  async updateBookingStatus(
-    bookingId: string,
-    updateStatusDto: UpdateBookingStatusDto
-  ): Promise<Booking> {
-    const booking = await this.bookingRepository.findOneBy({ id: bookingId });
-
+  async updateBookingStatus(bookingId: string, status: BookingStatus): Promise<IBooking> {
+    const booking = await Booking.findById(bookingId);
     if (!booking) {
       throw new Error('Đặt phòng không tồn tại');
     }
 
-    booking.status = updateStatusDto.status;
-    return this.bookingRepository.save(booking);
+    // Kiểm tra logic chuyển trạng thái
+    if (booking.status === BookingStatus.CANCELLED) {
+      throw new Error('Không thể thay đổi trạng thái của đặt phòng đã hủy');
+    }
+
+    if (status === BookingStatus.CONFIRMED && booking.paymentStatus !== PaymentStatus.PAID) {
+      throw new Error('Không thể xác nhận đặt phòng chưa thanh toán');
+    }
+
+    booking.status = status;
+    await booking.save();
+
+    return booking.populate([
+      { path: 'userId', select: 'firstName lastName email' },
+      { path: 'homestayId', select: 'name address price images' }
+    ]);
   }
 
-  /**
-   * Cập nhật trạng thái thanh toán
-   */
-  async updatePaymentStatus(
-    bookingId: string,
-    updatePaymentStatusDto: UpdatePaymentStatusDto
-  ): Promise<Booking> {
-    const booking = await this.bookingRepository.findOneBy({ id: bookingId });
-
+  async confirmUserPayment(
+    userId: string, 
+    bookingId: string, 
+    params: ConfirmPaymentParams
+  ): Promise<IBooking> {
+    const booking = await Booking.findById(bookingId);
     if (!booking) {
       throw new Error('Đặt phòng không tồn tại');
     }
 
-    booking.paymentStatus = updatePaymentStatusDto.paymentStatus;
-
-    if (updatePaymentStatusDto.paymentReference) {
-      booking.paymentReference = updatePaymentStatusDto.paymentReference;
-    }
-
-    if (updatePaymentStatusDto.notes) {
-      booking.notes = booking.notes
-        ? `${booking.notes}\n\nCập nhật thanh toán: ${updatePaymentStatusDto.notes}`
-        : `Cập nhật thanh toán: ${updatePaymentStatusDto.notes}`;
-    }
-
-    return this.bookingRepository.save(booking);
-  }
-
-  /**
-   * Khởi tạo quy trình thanh toán cho đặt phòng
-   */
-  async initiatePayment(bookingId: string): Promise<Booking> {
-    const booking = await this.getBookingById(bookingId);
-
-    if (booking.status !== BookingStatus.CONFIRMED) {
-      throw new Error('Đặt phòng chưa được xác nhận');
-    }
-
-    if (booking.paymentStatus !== PaymentStatus.UNPAID && booking.paymentStatus !== PaymentStatus.PENDING_VERIFICATION) {
-      throw new Error('Đặt phòng đã được thanh toán hoặc đang trong quá trình thanh toán');
-    }
-
-    // Cập nhật trạng thái đặt phòng
-    booking.status = BookingStatus.PAYMENT_PENDING;
-    await this.bookingRepository.save(booking);
-
-    // Tạo thông tin thanh toán và mã QR cho đặt phòng
-    return await paymentService.generatePaymentInfo(bookingId);
-  }
-
-  /**
-   * Lấy thông tin thanh toán của đặt phòng
-   */
-  async getPaymentInfo(bookingId: string): Promise<Booking> {
-    const booking = await this.bookingRepository.findOne({
-      where: { id: bookingId },
-      select: [
-        'id', 'totalPrice', 'paymentStatus', 'paymentMethod',
-        'paymentReference', 'paymentQrCode', 'paymentDate', 'paymentVerifiedAt'
-      ]
-    });
-
-    if (!booking) {
-      throw new Error('Đặt phòng không tồn tại');
-    }
-
-    return booking;
-  }
-
-  /**
-   * Lấy tất cả đặt phòng (cho admin)
-   */
-  async getAllBookings(): Promise<Booking[]> {
-    return this.bookingRepository.find({
-      relations: ['homestay', 'user'],
-      order: { createdAt: 'DESC' }
-    });
-  }
-
-  /**
-   * Lấy đặt phòng theo trạng thái
-   */
-  async getBookingsByStatus(status: BookingStatus): Promise<Booking[]> {
-    return this.bookingRepository.find({
-      where: { status },
-      relations: ['homestay', 'user'],
-      order: { createdAt: 'DESC' }
-    });
-  }
-
-  /**
-   * Đếm số đặt phòng theo trạng thái
-   */
-  async countBookingsByStatus(status: BookingStatus): Promise<number> {
-    return this.bookingRepository.count({
-      where: { status }
-    });
-  }
-
-  /**
-   * Tính tổng doanh thu từ các đặt phòng đã thanh toán
-   */
-  async calculateTotalRevenue(): Promise<number> {
-    const result = await this.bookingRepository
-      .createQueryBuilder('booking')
-      .select('SUM(booking.totalPrice)', 'total')
-      .where('booking.paymentStatus = :status', { status: PaymentStatus.PAID })
-      .getRawOne();
-
-    return result?.total || 0;
-  }
-
-  /**
-   * Lấy các đặt phòng mới nhất đang chờ xác nhận thanh toán
-   */
-  async getRecentPendingPayments(limit: number): Promise<Booking[]> {
-    return this.bookingRepository.find({
-      where: { paymentStatus: PaymentStatus.PENDING_VERIFICATION },
-      relations: ['homestay', 'user'],
-      order: { createdAt: 'DESC' },
-      take: limit
-    });
-  }
-
-  /**
-   * Admin cập nhật trạng thái đặt phòng
-   */
-  async adminUpdateBookingStatus(
-    bookingId: string,
-    status: string | BookingStatus,
-    notes?: string
-  ): Promise<Booking> {
-    const booking = await this.getBookingById(bookingId);
-
-    // Convert string status to enum if needed
-    if (typeof status === 'string') {
-      // Check if the string is a valid enum value
-      if (Object.values(BookingStatus).includes(status as BookingStatus)) {
-        booking.status = status as BookingStatus;
-      } else {
-        throw new Error(`Trạng thái không hợp lệ: ${status}`);
-      }
-    } else {
-      booking.status = status;
-    }
-
-    if (notes) {
-      booking.notes = booking.notes
-        ? `${booking.notes}\n\nAdmin note: ${notes}`
-        : `Admin note: ${notes}`;
-    }
-
-    return this.bookingRepository.save(booking);
-  }
-
-  /**
-   * Xác nhận người dùng đã thanh toán và cập nhật trạng thái thành đang chờ xác minh
-   */
-  async confirmUserPayment(userId: number, bookingId: string): Promise<Booking> {
-    // Kiểm tra booking tồn tại
-    const booking = await this.bookingRepository.findOne({
-      where: { id: bookingId },
-      relations: ['user', 'homestay']
-    });
-
-    if (!booking) {
-      throw new Error('Đặt phòng không tồn tại');
-    }
-
-    // Kiểm tra booking thuộc về người dùng
-    if (booking.userId !== userId) {
+    if (booking.userId.toString() !== userId) {
       throw new Error('Bạn không có quyền xác nhận thanh toán cho đặt phòng này');
     }
 
-    // Kiểm tra trạng thái booking
     if (booking.status !== BookingStatus.CONFIRMED) {
       throw new Error('Đặt phòng chưa được xác nhận');
     }
 
-    // Kiểm tra trạng thái thanh toán
-    if (booking.paymentStatus !== PaymentStatus.PENDING) {
-      if (booking.paymentStatus === PaymentStatus.PAID) {
-        throw new Error('Đặt phòng đã được thanh toán');
-      }
-
-      if (booking.paymentStatus === PaymentStatus.WAITING_APPROVAL) {
-        throw new Error('Đặt phòng đang chờ xác nhận thanh toán');
-      }
-
-      throw new Error('Trạng thái đặt phòng không hợp lệ để xác nhận thanh toán');
+    if (booking.paymentStatus === PaymentStatus.PAID) {
+      throw new Error('Đặt phòng đã được thanh toán');
     }
 
-    // Cập nhật trạng thái thanh toán thành đang chờ xác minh
+    booking.paymentMethod = params.paymentMethod;
+    booking.paymentReference = params.paymentReference;
     booking.paymentStatus = PaymentStatus.WAITING_APPROVAL;
-    booking.paymentConfirmedAt = new Date();
+    booking.paymentDate = new Date();
 
-    // Lưu lại thông tin booking
-    await this.bookingRepository.save(booking);
-
-    // Gửi email thông báo cho admin về việc có thanh toán chờ xác nhận
-    await this.notifyAdminAboutPaymentConfirmation(booking);
-
-    return booking;
+    await booking.save();
+    
+    return booking.populate([
+      { path: 'userId', select: 'firstName lastName email' },
+      { path: 'homestayId', select: 'name address price images' }
+    ]);
   }
 
-  /**
-   * Gửi thông báo cho admin về việc có thanh toán chờ xác nhận
-   */
-  private async notifyAdminAboutPaymentConfirmation(booking: Booking): Promise<void> {
-    try {
-      // Lấy thông tin user và homestay
-      const user = booking.user;
-      const homestay = booking.homestay;
-
-      if (!user || !homestay) {
-        console.error('Thiếu thông tin user hoặc homestay khi gửi email thông báo thanh toán');
-        return;
-      }
-
-      // Chuẩn bị nội dung HTML cho email
-      const htmlContent = `
-        <h1>Thông báo: Có thanh toán mới đang chờ xác nhận</h1>
-        <p>Booking ID: <strong>${booking.id}</strong></p>
-        <p>Khách hàng: <strong>${user.fullName}</strong> (${user.email})</p>
-        <p>Homestay: <strong>${homestay.name}</strong> (${homestay.address})</p>
-        <p>Số tiền: <strong>${booking.totalPrice.toLocaleString('vi-VN')} VND</strong></p>
-        <p>Mã tham chiếu: <strong>${booking.paymentReference || 'N/A'}</strong></p>
-        <p>Thời gian xác nhận: <strong>${booking.paymentConfirmedAt?.toLocaleString('vi-VN') || 'N/A'}</strong></p>
-        <p>Vui lòng truy cập <a href="${process.env.ADMIN_URL || 'http://localhost:5173'}/admin/payments">hệ thống quản trị</a> để xác thực thanh toán này.</p>
-      `;
-
-      // Gửi email thông báo cho admin
-      await emailService.sendMail({
-        to: process.env.ADMIN_EMAIL || 'admin@hdhomestay.com',
-        subject: 'Có thanh toán mới chờ xác nhận',
-        html: htmlContent
-      });
-    } catch (error) {
-      console.error('Lỗi khi gửi email thông báo cho admin:', error);
-      // Không ném lỗi ra ngoài vì không muốn ảnh hưởng đến luồng xử lý chính
-    }
+  async getBookingsByStatus(status: BookingStatus): Promise<IBooking[]> {
+    return Booking.find({ status })
+      .populate('userId', 'firstName lastName email')
+      .populate('homestayId', 'name address price images')
+      .sort({ createdAt: -1 });
   }
 
-  /**
-   * Lấy danh sách đặt phòng theo trạng thái thanh toán
-   * @param status - Trạng thái thanh toán cần lọc
-   * @returns Danh sách đặt phòng
-   */
-  async getBookingsWithPaymentStatus(paymentStatus: PaymentStatus): Promise<Booking[]> {
-    return this.bookingRepository.find({
-      where: {
-        paymentStatus,
-      },
-      relations: ['user', 'homestay'],
-      order: {
-        createdAt: 'DESC', // Sắp xếp theo thời gian tạo mới nhất
-      },
+  async getAllBookings(): Promise<IBooking[]> {
+    return Booking.find({})
+      .populate('userId', 'firstName lastName email')
+      .populate('homestayId', 'name address price images')
+      .sort({ createdAt: -1 });
+  }
+
+  async countBookingsByStatus(status: BookingStatus): Promise<number> {
+    return Booking.countDocuments({ status });
+  }
+
+  async calculateTotalRevenue(): Promise<number> {
+    const paidBookings = await Booking.find({ 
+      paymentStatus: PaymentStatus.PAID 
     });
+    
+    return paidBookings.reduce((total, booking) => total + booking.totalPrice, 0);
+  }
+
+  async getRecentPendingPayments(limit: number): Promise<IBooking[]> {
+    return Booking.find({ 
+      paymentStatus: PaymentStatus.WAITING_APPROVAL 
+    })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .populate('userId', 'firstName lastName email')
+      .populate('homestayId', 'name address price images');
+  }
+
+  async getBookingsWithPaymentStatus(paymentStatus: PaymentStatus): Promise<IBooking[]> {
+    return Booking.find({ paymentStatus })
+      .populate('userId', 'firstName lastName email')
+      .populate('homestayId', 'name address price images')
+      .sort({ createdAt: -1 });
+  }
+
+  async adminUpdateBookingStatus(id: string, status: BookingStatus, notes?: string): Promise<IBooking> {
+    const booking = await Booking.findById(id);
+    if (!booking) {
+      throw new Error('Đặt phòng không tồn tại');
+    }
+
+    // Validate status transition
+    if (booking.status === BookingStatus.CANCELLED) {
+      throw new Error('Không thể thay đổi trạng thái của đặt phòng đã hủy');
+    }
+
+    // Update status and notes
+    booking.status = status;
+    if (notes) {
+      booking.notes = notes;
+    }
+
+    await booking.save();
+
+    return booking.populate([
+      { path: 'userId', select: 'firstName lastName email' },
+      { path: 'homestayId', select: 'name address price images' }
+    ]);
+  }
+
+  private async checkHomestayAvailability(
+    homestayId: string,
+    checkInDate: Date,
+    checkOutDate: Date
+  ): Promise<boolean> {
+    const overlappingBookings = await Booking.find({
+      homestayId: new Types.ObjectId(homestayId),
+      status: { $in: [BookingStatus.CONFIRMED, BookingStatus.PENDING] },
+      $or: [
+        {
+          checkInDate: { $lte: new Date(checkInDate) },
+          checkOutDate: { $gt: new Date(checkInDate) },
+        },
+        {
+          checkInDate: { $lt: new Date(checkOutDate) },
+          checkOutDate: { $gte: new Date(checkOutDate) },
+        },
+        {
+          checkInDate: { $gte: new Date(checkInDate) },
+          checkOutDate: { $lte: new Date(checkOutDate) },
+        },
+      ],
+    });
+
+    return overlappingBookings.length === 0;
   }
 }
 

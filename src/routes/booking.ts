@@ -8,7 +8,7 @@ import {
   confirmPayment
 } from '../controllers/booking';
 import { authenticateJWT, authorize } from '../middlewares/auth';
-import { UserRole } from '../models/user';
+import { UserRole } from '../schemas/user.schema';
 
 const router = express.Router();
 

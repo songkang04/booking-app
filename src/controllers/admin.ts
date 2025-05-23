@@ -3,7 +3,7 @@ import { createResponse } from '../utils/function';
 import bookingService from '../services/booking';
 import paymentService from '../services/payment';
 import homestayService from '../services/homestay';
-import { BookingStatus, PaymentStatus } from '../models/booking';
+import { BookingStatus, PaymentStatus } from '../schemas/booking.schema';
 
 /**
  * Lấy danh sách tất cả đặt phòng với thông tin chi tiết (cho admin)

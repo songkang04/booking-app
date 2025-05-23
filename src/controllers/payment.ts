@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import { createResponse } from '../utils/function';
-import bookingService from '../services/booking';
 import paymentService from '../services/payment';
 import { UpdatePaymentStatusDto } from '../dtos/booking.dto';
 
@@ -10,7 +9,7 @@ import { UpdatePaymentStatusDto } from '../dtos/booking.dto';
 export const initiatePayment = async (req: Request, res: Response) => {
   try {
     const bookingId = req.params.id;
-    const booking = await bookingService.initiatePayment(bookingId);
+    const booking = await paymentService.initiatePayment(bookingId);
 
     return res.json(createResponse(true, 'Khởi tạo thanh toán thành công', {
       id: booking.id,
@@ -43,7 +42,7 @@ export const initiatePayment = async (req: Request, res: Response) => {
 export const getPaymentInfo = async (req: Request, res: Response) => {
   try {
     const bookingId = req.params.id;
-    const payment = await bookingService.getPaymentInfo(bookingId);
+    const payment = await paymentService.getPaymentInfo(bookingId);
 
     return res.json(createResponse(true, 'Lấy thông tin thanh toán thành công', payment));
   } catch (error) {
@@ -65,9 +64,17 @@ export const updatePaymentStatus = async (req: Request, res: Response) => {
     const bookingId = req.params.id;
     const updateStatusDto: UpdatePaymentStatusDto = req.body;
 
-    const booking = await bookingService.updatePaymentStatus(bookingId, updateStatusDto);
+    const success = await paymentService.updatePaymentStatus(
+      bookingId, 
+      updateStatusDto.paymentStatus, 
+      updateStatusDto.paymentReference
+    );
 
-    return res.json(createResponse(true, 'Cập nhật trạng thái thanh toán thành công', booking));
+    if (!success) {
+      return res.status(400).json(createResponse(false, 'Không thể cập nhật trạng thái thanh toán'));
+    }
+
+    return res.json(createResponse(true, 'Cập nhật trạng thái thanh toán thành công'));
   } catch (error) {
     console.error('Lỗi cập nhật trạng thái thanh toán:', error);
 
@@ -87,7 +94,7 @@ export const verifyPayment = async (req: Request, res: Response) => {
     const bookingId = req.params.id;
     const adminId = req.user?.id;
     const notes = req.body.notes;
-    const approved = req.body.approved !== undefined ? req.body.approved : true; // Mặc định là phê duyệt
+    const approved = req.body.approved !== undefined ? req.body.approved : true;
 
     if (!adminId) {
       return res.status(401).json(createResponse(false, 'Không có quyền thực hiện hành động này'));

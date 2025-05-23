@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer';
-import { User } from '../models/user';
 import fs from 'fs';
 import path from 'path';
+import { IUser } from '../schemas/user.schema';
 
 class EmailService {
   private transporter: nodemailer.Transporter;
@@ -23,15 +23,22 @@ class EmailService {
     console.log(`- FRONTEND URL: ${this.frontendUrl}`);
     console.log(`- Template Directory: ${this.templateDir}`);
 
-    // Khởi tạo transporter cho nodemailer
+    // Kiểm tra biến môi trường bắt buộc
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
+      throw new Error('[EMAIL SERVICE] Missing required environment variables: EMAIL_USER and/or EMAIL_PASSWORD');
+    }
+
+    // Khởi tạo transporter cho nodemailer với Gmail
     this.transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.EMAIL_PORT || '587'),
-      secure: process.env.EMAIL_SECURE === 'true',
+      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
       auth: {
-        user: process.env.EMAIL_USER || '',
-        pass: process.env.EMAIL_PASSWORD || '',
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASSWORD,
       },
+      debug: process.env.NODE_ENV === 'development'
     });
 
     // Kiểm tra kết nối khi khởi tạo (trong môi trường development)
@@ -85,7 +92,7 @@ class EmailService {
   /**
    * Gửi email xác thực tài khoản
    */
-  async sendVerificationEmail(user: User, verificationToken: string): Promise<boolean> {
+  async sendVerificationEmail(user: IUser, verificationToken: string): Promise<boolean> {
     const verificationUrl = `${this.frontendUrl}/verify-email?token=${verificationToken}`;
     console.log(`[EMAIL SERVICE] 🔄 Đang gửi email xác thực cho: ${user.email}`);
     console.log(`[EMAIL SERVICE] 🔗 URL xác thực: ${verificationUrl}`);
@@ -147,7 +154,7 @@ class EmailService {
   /**
    * Gửi email đặt lại mật khẩu
    */
-  async sendPasswordResetEmail(user: User, resetToken: string): Promise<boolean> {
+  async sendPasswordResetEmail(user: IUser, resetToken: string): Promise<boolean> {
     const resetUrl = `${this.frontendUrl}/reset-password?token=${resetToken}`;
     console.log(`[EMAIL SERVICE] 🔄 Đang gửi email đặt lại mật khẩu cho: ${user.email}`);
 

@@ -1,63 +1,108 @@
-import bcrypt from 'bcrypt';
-import { AppDataSource } from '../config/database';
-import { User } from '../models/user';
-import type { UpdateProfileDto } from '../dtos/user';
+import { User, IUser } from '../schemas/user.schema';
+import { UpdateProfileDto } from '../dtos/user';
 
 class UserService {
-  private userRepository = AppDataSource.getRepository(User);
-
-  async getUserById(userId: number): Promise<User | null> {
-    return this.userRepository.findOneBy({ id: userId });
+  async getUserById(id: string): Promise<IUser | null> {
+    return User.findById(id);
   }
 
-  async updateProfile(userId: number, updateData: UpdateProfileDto): Promise<User> {
-    // Lấy người dùng kèm mật khẩu để xác thực
-    const user = await this.userRepository
-      .createQueryBuilder('user')
-      .addSelect('user.password')
-      .where('user.id = :id', { id: userId })
-      .getOne();
+  async getUserByEmail(email: string): Promise<IUser | null> {
+    return User.findOne({ email });
+  }
+
+  async updateUser(
+    userId: string,
+    userData: Partial<IUser>
+  ): Promise<IUser | null> {
+    // Không cho phép cập nhật password qua phương thức này
+    if (userData.password) {
+      delete userData.password;
+    }
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $set: userData },
+      { new: true } // Trả về document sau khi update
+    );
+
+    return user;
+  }
+
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string
+  ): Promise<boolean> {
+    // Tìm user và lấy cả password
+    const user = await User.findById(userId).select('+password');
 
     if (!user) {
       throw new Error('Không tìm thấy người dùng');
     }
 
-    const {
-      firstName,
-      lastName,
-      phoneNumber,
-      profilePicture,
-      currentPassword,
-      newPassword,
-      confirmNewPassword,
-    } = updateData;
+    // Kiểm tra mật khẩu hiện tại
+    const isPasswordValid = await user.comparePassword(currentPassword);
+    if (!isPasswordValid) {
+      throw new Error('Mật khẩu hiện tại không đúng');
+    }
 
-    // Xử lý thay đổi mật khẩu nếu được yêu cầu
-    if (currentPassword && newPassword && confirmNewPassword) {
-      // Kiểm tra mật khẩu mới khớp nhau
-      if (newPassword !== confirmNewPassword) {
+    // Cập nhật mật khẩu mới
+    user.password = newPassword;
+    await user.save();
+
+    return true;
+  }
+
+  async updateProfile(
+    userId: string,
+    updateData: UpdateProfileDto
+  ): Promise<IUser> {
+    const user = await User.findById(userId).select('+password');
+    
+    if (!user) {
+      throw new Error('Không tìm thấy người dùng');
+    }
+
+    // Xử lý thay đổi mật khẩu nếu được cung cấp
+    if (updateData.currentPassword && updateData.newPassword) {
+      if (updateData.newPassword !== updateData.confirmNewPassword) {
         throw new Error('Mật khẩu mới không khớp');
       }
 
       // Xác thực mật khẩu hiện tại
-      const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+      const isPasswordValid = await user.comparePassword(updateData.currentPassword);
       if (!isPasswordValid) {
         throw new Error('Mật khẩu hiện tại không đúng');
       }
 
-      // Cập nhật mật khẩu
-      user.password = newPassword;
+      // Cập nhật mật khẩu mới
+      user.password = updateData.newPassword;
     }
 
-    // Cập nhật các trường thông tin nếu được cung cấp
-    if (firstName) user.firstName = firstName;
-    if (lastName) user.lastName = lastName;
-    if (phoneNumber) user.phoneNumber = phoneNumber;
-    if (profilePicture) user.profilePicture = profilePicture;
+    // Cập nhật các thông tin khác
+    if (updateData.firstName) user.firstName = updateData.firstName;
+    if (updateData.lastName) user.lastName = updateData.lastName;
+    if (updateData.phoneNumber) user.phoneNumber = updateData.phoneNumber;
+    if (updateData.profilePicture) user.profilePicture = updateData.profilePicture;
 
-    // Lưu thông tin người dùng đã cập nhật
-    await this.userRepository.save(user);
+    await user.save();
     return user;
+  }
+
+  async getAllUsers(page: number = 1, limit: number = 10): Promise<{ users: IUser[]; total: number }> {
+    const skip = (page - 1) * limit;
+
+    const [users, total] = await Promise.all([
+      User.find().skip(skip).limit(limit),
+      User.countDocuments()
+    ]);
+
+    return { users, total };
+  }
+
+  async deleteUser(userId: string): Promise<boolean> {
+    const result = await User.deleteOne({ _id: userId });
+    return result.deletedCount === 1;
   }
 }
 
