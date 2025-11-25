@@ -43,3 +43,11 @@ Thumbs.db
 
 # TypeORM
 ormconfig.json
+
+# env
+.env
+.env.local
+
+# lock files
+package-lock.json
+yarn.lock
