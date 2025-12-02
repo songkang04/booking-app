@@ -195,3 +195,28 @@ export const verifyEmail = async (req: Request, res: Response) => {
     return res.status(500).json(createResponse(false, 'Lỗi khi xác thực email'));
   }
 };
+
+export const verifyEmailOtp = async (req: Request, res: Response) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json(createResponse(false, 'Email và mã OTP không được để trống'));
+    }
+
+    if (!/^\d{6}$/.test(otp)) {
+      return res.status(400).json(createResponse(false, 'Mã OTP phải là 6 chữ số'));
+    }
+
+    const result = await authService.verifyEmailOtp(email, otp);
+
+    return res.status(200).json(createResponse(true, 'Email đã được xác thực thành công', { user: result }));
+  } catch (error) {
+    console.error('Lỗi xác thực email:', error);
+    if (error instanceof Error && error.message === 'Mã OTP không hợp lệ hoặc đã hết hạn') {
+      return res.status(400).json(createResponse(false, error.message));
+    }
+    return res.status(500).json(createResponse(false, 'Lỗi khi xác thực email'));
+  }
+};
+

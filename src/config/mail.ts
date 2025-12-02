@@ -139,35 +139,35 @@ class EmailService {
   /**
    * Gửi email xác thực tài khoản
    */
-  async sendVerificationEmail(user: IUser, verificationToken: string): Promise<boolean> {
-    const verificationUrl = `${this.frontendUrl}/verify-email?token=${verificationToken}`;
-
+  async sendVerificationEmail(user: IUser, verificationOtp: string): Promise<boolean> {
     console.log('🔄 Đang chuẩn bị gửi email xác thực cho:', user.email);
-    console.log('🔗 URL xác thực:', verificationUrl);
+    console.log('🔐 Mã OTP:', verificationOtp);
 
     try {
       // Kiểm tra lại kết nối SMTP trước khi gửi
       await this.transporter.verify();
-      
+
       // Chuẩn bị HTML content
       let html;
       try {
         html = await this.loadTemplate('email-verification', {
           firstName: user.firstName,
-          verificationUrl: verificationUrl,
+          verificationOtp: verificationOtp,
         });
         console.log('✅ Đã tải template email-verification thành công');
       } catch (error) {
         console.log('⚠️ Sử dụng template HTML cơ bản thay thế');
         html = `
-          <div>
-            <h1>Xác thực tài khoản</h1>
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h1 style="color: #333;">Xác thực tài khoản</h1>
             <p>Xin chào ${user.firstName},</p>
-            <p>Cảm ơn bạn đã đăng ký tài khoản trên hệ thống của chúng tôi. Vui lòng nhấp vào liên kết dưới đây để xác thực email của bạn:</p>
-            <p><a href="${verificationUrl}" style="padding: 10px 15px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 4px;">Xác thực email</a></p>
-            <p>Hoặc bạn có thể sao chép và dán liên kết này vào trình duyệt:</p>
-            <p>${verificationUrl}</p>
-            <p>Liên kết sẽ hết hạn sau 24 giờ.</p>
+            <p>Cảm ơn bạn đã đăng ký tài khoản trên hệ thống của chúng tôi. Vui lòng sử dụng mã xác thực dưới đây:</p>
+            <div style="background-color: #f0f0f0; padding: 20px; text-align: center; border-radius: 8px; margin: 20px 0;">
+              <p style="font-size: 14px; color: #666; margin-bottom: 10px;">Mã xác thực của bạn:</p>
+              <p style="font-size: 32px; font-weight: bold; color: #4CAF50; letter-spacing: 5px; margin: 0;">${verificationOtp}</p>
+            </div>
+            <p>Mã này sẽ hết hạn sau <strong>15 phút</strong>.</p>
+            <p style="color: #999; font-size: 12px; margin-top: 20px;">Nếu bạn không yêu cầu xác thực, vui lòng bỏ qua email này.</p>
           </div>
         `;
       }
@@ -184,7 +184,7 @@ class EmailService {
       const info = await this.transporter.sendMail({
         from: this.fromEmail,
         to: user.email,
-        subject: 'Xác thực tài khoản của bạn',
+        subject: 'Mã xác thực tài khoản của bạn',
         html,
       });
 
@@ -200,7 +200,7 @@ class EmailService {
         console.error('🔌 Lỗi kết nối: Kiểm tra lại kết nối mạng và cấu hình SMTP');
       }
 
-      throw error; // Throw error để service gọi đến có thể xử lý
+      return false;
     }
   }
 
@@ -238,6 +238,96 @@ class EmailService {
       return true;
     } catch (error) {
       console.error('Lỗi gửi email xác nhận xác thực:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Gửi email OTP xác thực đặt phòng
+   */
+  async sendBookingOtpEmail(
+    user: IUser,
+    otp: string,
+    bookingDetails: {
+      homestayName: string;
+      homestayAddress: string;
+      checkInDate: Date;
+      checkOutDate: Date;
+      guestCount: number;
+      totalPrice: number;
+    }
+  ): Promise<boolean> {
+    console.log('🔄 Đang chuẩn bị gửi email OTP xác thực booking cho:', user.email);
+    console.log('🔐 Mã OTP:', otp);
+
+    // Format dates to Vietnamese format
+    const formatDate = (date: Date) => {
+      return new Date(date).toLocaleDateString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    };
+
+    try {
+      let html;
+      try {
+        html = await this.loadTemplate('booking-otp', {
+          firstName: user.firstName,
+          verificationOtp: otp,
+          homestayName: bookingDetails.homestayName,
+          homestayAddress: bookingDetails.homestayAddress,
+          checkInDate: formatDate(bookingDetails.checkInDate),
+          checkOutDate: formatDate(bookingDetails.checkOutDate),
+          guestCount: bookingDetails.guestCount.toString(),
+          totalPrice: bookingDetails.totalPrice.toLocaleString('vi-VN'),
+        });
+        console.log('✅ Đã tải template booking-otp thành công');
+      } catch (error) {
+        console.log('⚠️ Sử dụng template HTML cơ bản thay thế');
+        html = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #4CAF50; text-align: center;">Xác thực đặt phòng</h2>
+            <p>Xin chào ${user.firstName},</p>
+            <p>Cảm ơn bạn đã đặt phòng tại <strong>${bookingDetails.homestayName}</strong>. Vui lòng sử dụng mã OTP dưới đây để xác thực đặt phòng của bạn:</p>
+
+            <div style="background-color: #f0f0f0; padding: 20px; text-align: center; border-radius: 8px; margin: 20px 0;">
+              <p style="font-size: 14px; color: #666; margin-bottom: 10px;">Mã xác thực của bạn:</p>
+              <p style="font-size: 32px; font-weight: bold; color: #4CAF50; letter-spacing: 8px; margin: 0;">${otp}</p>
+            </div>
+
+            <div style="background-color: #f9f9f9; padding: 15px; border-radius: 4px; margin: 20px 0;">
+              <h3 style="margin-top: 0;">Chi tiết đặt phòng:</h3>
+              <p><strong>Homestay:</strong> ${bookingDetails.homestayName}</p>
+              <p><strong>Địa chỉ:</strong> ${bookingDetails.homestayAddress}</p>
+              <p><strong>Ngày check-in:</strong> ${formatDate(bookingDetails.checkInDate)}</p>
+              <p><strong>Ngày check-out:</strong> ${formatDate(bookingDetails.checkOutDate)}</p>
+              <p><strong>Số lượng khách:</strong> ${bookingDetails.guestCount}</p>
+              <p><strong>Tổng giá tiền:</strong> ${bookingDetails.totalPrice.toLocaleString('vi-VN')} VNĐ</p>
+            </div>
+
+            <p><strong>Lưu ý:</strong> Mã OTP này sẽ hết hạn sau <strong>15 phút</strong>.</p>
+            <p>Nếu bạn không thực hiện đặt phòng này, vui lòng bỏ qua email này.</p>
+
+            <p style="margin-top: 30px; font-size: 12px; color: #777; text-align: center;">
+              Email này được gửi tự động, vui lòng không trả lời.<br>
+              &copy; 2025 Booking App. Bảo lưu mọi quyền.
+            </p>
+          </div>
+        `;
+      }
+
+      const info = await this.transporter.sendMail({
+        from: this.fromEmail,
+        to: user.email,
+        subject: `Mã xác thực đặt phòng tại ${bookingDetails.homestayName}`,
+        html,
+      });
+
+      console.log('✅ Email OTP đặt phòng đã được gửi:', info.messageId);
+      return true;
+    } catch (error) {
+      console.error('❌ Lỗi gửi email OTP đặt phòng:', error);
       return false;
     }
   }

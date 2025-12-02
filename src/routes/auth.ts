@@ -6,7 +6,8 @@ import {
   register,
   resetPassword,
   updateProfile,
-  verifyEmail
+  verifyEmail,
+  verifyEmailOtp
 } from '../controllers/auth';
 import { authenticateJWT } from '../middlewares/auth';
 import {
@@ -234,5 +235,37 @@ router.post('/reset-password', validateResetPassword, resetPassword);
  *         description: Invalid token
  */
 router.post('/verify-email', verifyEmail);
+
+/**
+ * @swagger
+ * /auth/verify-email-otp:
+ *   post:
+ *     summary: Verify email with 6-digit OTP
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - otp
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               otp:
+ *                 type: string
+ *                 minLength: 6
+ *                 maxLength: 6
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: Email verified successfully
+ *       400:
+ *         description: Invalid OTP or expired
+ */
+router.post('/verify-email-otp', verifyEmailOtp);
 
 export default router;

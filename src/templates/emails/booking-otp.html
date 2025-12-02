@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Xác thực tài khoản</title>
+    <title>Xác thực đặt phòng</title>
     <style>
         body {
             font-family: 'Helvetica Neue', Arial, sans-serif;
@@ -47,6 +47,20 @@
             color: #666;
             margin-bottom: 10px;
         }
+        .booking-details {
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            border: 1px solid #eee;
+        }
+        .booking-details h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .booking-details p {
+            margin: 8px 0;
+        }
         .footer {
             margin-top: 30px;
             font-size: 12px;
@@ -58,21 +72,31 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>Xác thực tài khoản</h1>
+            <h1>Xác thực đặt phòng</h1>
         </div>
 
         <p>Xin chào {{firstName}},</p>
 
-        <p>Cảm ơn bạn đã đăng ký tài khoản trên hệ thống của chúng tôi. Để hoàn tất quá trình đăng ký, vui lòng sử dụng mã xác thực dưới đây:</p>
+        <p>Cảm ơn bạn đã đặt phòng tại <strong>{{homestayName}}</strong>. Vui lòng sử dụng mã OTP dưới đây để xác thực đặt phòng của bạn:</p>
 
         <div class="otp-box">
             <p class="otp-label">Mã xác thực của bạn:</p>
             <p class="otp-code">{{verificationOtp}}</p>
         </div>
 
+        <div class="booking-details">
+            <h3>Chi tiết đặt phòng:</h3>
+            <p><strong>Homestay:</strong> {{homestayName}}</p>
+            <p><strong>Địa chỉ:</strong> {{homestayAddress}}</p>
+            <p><strong>Ngày check-in:</strong> {{checkInDate}}</p>
+            <p><strong>Ngày check-out:</strong> {{checkOutDate}}</p>
+            <p><strong>Số lượng khách:</strong> {{guestCount}}</p>
+            <p><strong>Tổng giá tiền:</strong> {{totalPrice}} VNĐ</p>
+        </div>
+
         <p><strong>Lưu ý:</strong> Mã xác thực này sẽ hết hạn sau <strong>15 phút</strong> kể từ khi bạn nhận được email này.</p>
 
-        <p>Nếu bạn không thực hiện yêu cầu đăng ký này, vui lòng bỏ qua email này.</p>
+        <p>Nếu bạn không thực hiện đặt phòng này, vui lòng bỏ qua email này.</p>
 
         <div class="footer">
             <p>Email này được gửi tự động, vui lòng không trả lời.</p>
@@ -81,3 +105,4 @@
     </div>
 </body>
 </html>
+

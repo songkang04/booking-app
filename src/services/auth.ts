@@ -29,13 +29,13 @@ class AuthService {
       throw new Error('Email đã được sử dụng');
     }
 
-    // Tạo token xác thực email
-    const verificationToken = crypto.randomBytes(20).toString('hex');
-    console.log(`[AUTH SERVICE] ✅ Đã tạo token xác thực: ${verificationToken.substring(0, 10)}...`);
+    // Tạo mã OTP xác thực email (6 chữ số)
+    const verificationOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    console.log(`[AUTH SERVICE] ✅ Đã tạo mã OTP xác thực: ${verificationOtp}`);
 
-    // Thiết lập thời gian hết hạn (24 giờ)
+    // Thiết lập thời gian hết hạn (15 phút)
     const expiryDate = new Date();
-    expiryDate.setHours(expiryDate.getHours() + 24);
+    expiryDate.setMinutes(expiryDate.getMinutes() + 15);
 
     // Tạo người dùng mới
     const user = new User({
@@ -44,7 +44,7 @@ class AuthService {
       email,
       password, // Sẽ được mã hóa bởi middleware pre save của schema
       role: UserRole.USER,
-      emailVerificationToken: verificationToken,
+      emailVerificationOtp: verificationOtp,
       emailVerificationExpires: expiryDate,
       isEmailVerified: false
     });
@@ -56,7 +56,7 @@ class AuthService {
     // Gửi email xác thực
     console.log(`[AUTH SERVICE] 🔄 Bắt đầu gửi email xác thực...`);
     try {
-      const emailSent = await emailService.sendVerificationEmail(savedUser, verificationToken);
+      const emailSent = await emailService.sendVerificationEmail(savedUser, verificationOtp);
       if (emailSent) {
         console.log(`[AUTH SERVICE] ✅ Đã gửi email xác thực thành công cho: ${email}`);
       } else {
@@ -176,10 +176,39 @@ class AuthService {
     return user;
   }
 
+  async verifyEmailOtp(email: string, otp: string): Promise<IUser> {
+    // Tìm người dùng với OTP hợp lệ và chưa hết hạn
+    const user = await User.findOne({
+      email,
+      emailVerificationOtp: otp,
+      emailVerificationExpires: { $gt: new Date() }
+    });
+
+    if (!user) {
+      throw new Error('Mã OTP không hợp lệ hoặc đã hết hạn');
+    }
+
+    // Cập nhật trạng thái xác thực
+    user.isEmailVerified = true;
+    user.emailVerificationOtp = undefined;
+    user.emailVerificationExpires = undefined;
+
+    await user.save();
+
+    // Gửi email xác nhận
+    try {
+      await emailService.sendVerificationConfirmation(user);
+    } catch (error) {
+      console.error('Lỗi gửi email xác nhận:', error);
+    }
+
+    return user;
+  }
+
   async verifyEmail(token: string): Promise<IUser> {
     // Tìm người dùng với token hợp lệ và chưa hết hạn
     const user = await User.findOne({
-      emailVerificationToken: token,
+      emailVerificationOtp: token,
       emailVerificationExpires: { $gt: new Date() }
     });
 
@@ -189,7 +218,7 @@ class AuthService {
 
     // Cập nhật trạng thái xác thực
     user.isEmailVerified = true;
-    user.emailVerificationToken = undefined;
+    user.emailVerificationOtp = undefined;
     user.emailVerificationExpires = undefined;
 
     await user.save();

@@ -15,7 +15,7 @@ export interface IUser extends Document {
   phoneNumber?: string;
   profilePicture?: string;
   isEmailVerified: boolean;
-  emailVerificationToken?: string;
+  emailVerificationOtp?: string; // 6-digit OTP code
   emailVerificationExpires?: Date;
   passwordResetToken?: string;
   passwordResetExpires?: Date;
@@ -66,7 +66,7 @@ const userSchema = new Schema<IUser>(
       type: String,
       default: null,
     },
-    emailVerificationToken: String,
+    emailVerificationOtp: String,
     emailVerificationExpires: Date,
     passwordResetToken: String,
     passwordResetExpires: Date,

@@ -27,6 +27,8 @@ export interface IBooking extends Document {
   status: BookingStatus;
   notes?: string;
   verificationToken?: string;
+  verificationOtp?: string; // Mã OTP 6 số để xác thực booking
+  otpExpires?: Date; // Thời gian hết hạn OTP
   expiryDate?: Date;
   paymentStatus: PaymentStatus;
   paymentMethod?: string;
@@ -75,6 +77,8 @@ const bookingSchema = new Schema<IBooking>(
     },
     notes: String,
     verificationToken: String,
+    verificationOtp: String, // Mã OTP 6 số
+    otpExpires: Date, // Thời gian hết hạn OTP
     expiryDate: Date,
     paymentStatus: {
       type: String,

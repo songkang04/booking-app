@@ -2,6 +2,7 @@ import { Booking, BookingStatus, PaymentStatus, IBooking } from '../schemas/book
 import { Homestay, IHomestay } from '../schemas/homestay.schema';
 import { User, IUser } from '../schemas/user.schema';
 import { Types } from 'mongoose';
+import emailService from '../config/mail';
 
 interface CreateBookingParams {
   homestayId: string;
@@ -54,7 +55,7 @@ class BookingService {
 
     // Tính tổng số ngày
     const days = Math.ceil(
-      (new Date(params.checkOutDate).getTime() - new Date(params.checkInDate).getTime()) 
+      (new Date(params.checkOutDate).getTime() - new Date(params.checkInDate).getTime())
       / (1000 * 60 * 60 * 24)
     );
 
@@ -68,6 +69,14 @@ class BookingService {
     // Tạo mã đặt phòng theo format HDBK + 8 ký tự hex
     const bookingCode = 'HDBK' + Math.random().toString(16).substring(2, 10);
 
+    // Tạo mã OTP 6 số để xác thực booking
+    const verificationOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    console.log(`[BOOKING SERVICE] ✅ Đã tạo mã OTP xác thực booking: ${verificationOtp}`);
+
+    // Thời gian hết hạn OTP (15 phút)
+    const otpExpires = new Date();
+    otpExpires.setMinutes(otpExpires.getMinutes() + 15);
+
     // Tạo đặt phòng mới
     const booking = new Booking({
       userId: new Types.ObjectId(userId),
@@ -80,10 +89,31 @@ class BookingService {
       status: BookingStatus.PENDING,
       paymentStatus: PaymentStatus.UNPAID,
       verificationToken: bookingCode,
+      verificationOtp: verificationOtp,
+      otpExpires: otpExpires,
       expiryDate: new Date(Date.now() + 24 * 60 * 60 * 1000), // Hết hạn sau 24 giờ
     });
 
     await booking.save();
+
+    // Gửi email OTP xác thực booking
+    try {
+      const emailSent = await emailService.sendBookingOtpEmail(user, verificationOtp, {
+        homestayName: homestay.name,
+        homestayAddress: homestay.address,
+        checkInDate: params.checkInDate,
+        checkOutDate: params.checkOutDate,
+        guestCount: params.guestCount,
+        totalPrice: totalPrice,
+      });
+      if (emailSent) {
+        console.log(`[BOOKING SERVICE] ✅ Đã gửi email OTP xác thực booking cho: ${user.email}`);
+      } else {
+        console.error(`[BOOKING SERVICE] ❌ Không thể gửi email OTP cho: ${user.email}`);
+      }
+    } catch (error) {
+      console.error(`[BOOKING SERVICE] ❌ Lỗi gửi email OTP:`, error);
+    }
 
     // Populate thông tin liên quan
     return booking.populate([
@@ -142,7 +172,7 @@ class BookingService {
   }
 
   async verifyBooking(token: string): Promise<IBooking> {
-    const booking = await Booking.findOne({ 
+    const booking = await Booking.findOne({
       verificationToken: token,
       status: BookingStatus.PENDING
     });
@@ -160,6 +190,57 @@ class BookingService {
     booking.expiryDate = undefined;
 
     await booking.save();
+    return booking.populate([
+      { path: 'userId', select: 'firstName lastName email' },
+      { path: 'homestayId', select: 'name address price images' }
+    ]);
+  }
+
+  /**
+   * Xác thực booking bằng mã OTP 6 số
+   */
+  async verifyBookingOtp(bookingId: string, otp: string): Promise<IBooking> {
+    const booking = await Booking.findOne({
+      _id: new Types.ObjectId(bookingId),
+      verificationOtp: otp,
+      status: BookingStatus.PENDING
+    });
+
+    if (!booking) {
+      throw new Error('Mã OTP không hợp lệ hoặc đặt phòng không tồn tại');
+    }
+
+    if (booking.otpExpires && booking.otpExpires < new Date()) {
+      throw new Error('Mã OTP đã hết hạn');
+    }
+
+    // Cập nhật trạng thái booking sang CONFIRMED
+    booking.status = BookingStatus.CONFIRMED;
+    booking.verificationOtp = undefined;
+    booking.otpExpires = undefined;
+
+    await booking.save();
+
+    // Gửi email thông báo đặt phòng thành công
+    try {
+      const user = await User.findById(booking.userId);
+      const homestay = await Homestay.findById(booking.homestayId);
+
+      if (user && homestay) {
+        await emailService.sendBookingSuccessNotification(user, {
+          homestayName: homestay.name,
+          homestayAddress: homestay.address,
+          checkInDate: booking.checkInDate,
+          checkOutDate: booking.checkOutDate,
+          guestCount: booking.guestCount,
+          totalPrice: booking.totalPrice,
+          bookingId: (booking._id as string).toString(),
+        });
+      }
+    } catch (error) {
+      console.error('[BOOKING SERVICE] ❌ Lỗi gửi email thông báo:', error);
+    }
+
     return booking.populate([
       { path: 'userId', select: 'firstName lastName email' },
       { path: 'homestayId', select: 'name address price images' }
@@ -191,8 +272,8 @@ class BookingService {
   }
 
   async confirmUserPayment(
-    userId: string, 
-    bookingId: string, 
+    userId: string,
+    bookingId: string,
     params: ConfirmPaymentParams
   ): Promise<IBooking> {
     const booking = await Booking.findById(bookingId);
@@ -218,7 +299,7 @@ class BookingService {
     booking.paymentDate = new Date();
 
     await booking.save();
-    
+
     return booking.populate([
       { path: 'userId', select: 'firstName lastName email' },
       { path: 'homestayId', select: 'name address price images' }
@@ -244,16 +325,16 @@ class BookingService {
   }
 
   async calculateTotalRevenue(): Promise<number> {
-    const paidBookings = await Booking.find({ 
-      paymentStatus: PaymentStatus.PAID 
+    const paidBookings = await Booking.find({
+      paymentStatus: PaymentStatus.PAID
     });
-    
+
     return paidBookings.reduce((total, booking) => total + booking.totalPrice, 0);
   }
 
   async getRecentPendingPayments(limit: number): Promise<IBooking[]> {
-    return Booking.find({ 
-      paymentStatus: PaymentStatus.WAITING_APPROVAL 
+    return Booking.find({
+      paymentStatus: PaymentStatus.WAITING_APPROVAL
     })
       .sort({ createdAt: -1 })
       .limit(limit)

@@ -54,12 +54,12 @@ export const createBooking = async (req: Request, res: Response) => {
     if (error instanceof Error) {
       const errorMessage = error.message;
 
-      if (errorMessage === 'Người dùng không tồn tại' || 
+      if (errorMessage === 'Người dùng không tồn tại' ||
           errorMessage === 'Homestay không tồn tại') {
         return res.status(404).json(createResponse(false, errorMessage));
       }
 
-      if (errorMessage.includes('Ngày check-in') || 
+      if (errorMessage.includes('Ngày check-in') ||
           errorMessage.includes('Số lượng khách') ||
           errorMessage.includes('không còn trống')) {
         return res.status(400).json(createResponse(false, errorMessage));
@@ -103,6 +103,7 @@ export const getBookingById = async (req: Request, res: Response) => {
     }
 
     const booking = await bookingService.getBookingById(bookingId);
+    console.log('booking :', booking);
     if (!booking) {
       return res.status(404).json(createResponse(false, 'Đặt phòng không tồn tại'));
     }
@@ -112,7 +113,7 @@ export const getBookingById = async (req: Request, res: Response) => {
     const isAdmin = req.user?.role === 'admin';
     const isHost = (booking.homestayId as any)?.hostId?._id?.toString() === userId;
 
-    if (!isAdmin && !isHost && booking.userId.toString() !== userId) {
+    if (!isAdmin && !isHost && booking.userId?._id.toString() !== userId) {
       return res.status(403).json(createResponse(false, 'Không có quyền truy cập thông tin đặt phòng này'));
     }
 
@@ -145,8 +146,50 @@ export const verifyBooking = async (req: Request, res: Response) => {
     console.error('Lỗi xác nhận đặt phòng:', error);
 
     if (error instanceof Error) {
-      if (error.message.includes('Token không hợp lệ') || 
+      if (error.message.includes('Token không hợp lệ') ||
           error.message.includes('Token đã hết hạn')) {
+        return res.status(400).json(createResponse(false, error.message));
+      }
+      if (error.message.includes('không tồn tại')) {
+        return res.status(404).json(createResponse(false, error.message));
+      }
+    }
+
+    return res.status(500).json(createResponse(false, 'Lỗi khi xác nhận đặt phòng'));
+  }
+};
+
+/**
+ * Xác nhận đặt phòng bằng mã OTP
+ */
+export const verifyBookingOtp = async (req: Request, res: Response) => {
+  try {
+    const { bookingId, otp } = req.body;
+
+    // Validate bookingId
+    if (!bookingId || !Types.ObjectId.isValid(bookingId)) {
+      return res.status(400).json(createResponse(false, 'ID đặt phòng không hợp lệ'));
+    }
+
+    // Validate OTP format
+    if (!otp || !/^\d{6}$/.test(otp)) {
+      return res.status(400).json(createResponse(false, 'Mã OTP phải là 6 chữ số'));
+    }
+
+    const booking = await bookingService.verifyBookingOtp(bookingId, otp);
+    return res.json(
+      createResponse(
+        true,
+        'Xác nhận đặt phòng thành công! Đặt phòng của bạn đã được xác nhận.',
+        booking
+      )
+    );
+  } catch (error) {
+    console.error('Lỗi xác nhận đặt phòng bằng OTP:', error);
+
+    if (error instanceof Error) {
+      if (error.message.includes('OTP không hợp lệ') ||
+          error.message.includes('OTP đã hết hạn')) {
         return res.status(400).json(createResponse(false, error.message));
       }
       if (error.message.includes('không tồn tại')) {
@@ -185,7 +228,7 @@ export const updateBookingStatus = async (req: Request, res: Response) => {
         return res.status(404).json(createResponse(false, errorMessage));
       }
 
-      if (errorMessage.includes('không thể thay đổi') || 
+      if (errorMessage.includes('không thể thay đổi') ||
           errorMessage.includes('không thể xác nhận')) {
         return res.status(400).json(createResponse(false, errorMessage));
       }

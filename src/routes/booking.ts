@@ -4,6 +4,7 @@ import {
   getUserBookings,
   getBookingById,
   verifyBooking,
+  verifyBookingOtp,
   updateBookingStatus,
   confirmPayment
 } from '../controllers/booking';
@@ -135,6 +136,44 @@ router.get('/:id', authenticateJWT, getBookingById);
  *         description: Invalid token
  */
 router.get('/verify/:token', verifyBooking);
+
+/**
+ * @swagger
+ * /bookings/verify-otp:
+ *   post:
+ *     summary: Verify booking with 6-digit OTP
+ *     tags: [Bookings]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - bookingId
+ *               - otp
+ *             properties:
+ *               bookingId:
+ *                 type: string
+ *                 description: Booking ID
+ *               otp:
+ *                 type: string
+ *                 minLength: 6
+ *                 maxLength: 6
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: Booking verified successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Booking'
+ *       400:
+ *         description: Invalid OTP or expired
+ *       404:
+ *         description: Booking not found
+ */
+router.post('/verify-otp', verifyBookingOtp);
 
 /**
  * @swagger
