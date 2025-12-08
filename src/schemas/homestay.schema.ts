@@ -5,6 +5,8 @@ export interface IAmenity {
   icon: string;
 }
 
+export type HomestayStatus = 'available' | 'unavailable' | 'maintenance';
+
 export interface IHomestay extends Document {
   name: string;
   description: string;
@@ -19,6 +21,7 @@ export interface IHomestay extends Document {
   bathroomCount: number;
   amenities: string[];
   hostId: mongoose.Types.ObjectId;
+  status: HomestayStatus;
   rating: number;
   reviewCount: number;
   isActive: boolean;
@@ -40,6 +43,10 @@ const homestaySchema = new Schema<IHomestay>(
     address: {
       type: String,
       required: true,
+    },
+    status: {
+      type: String,
+      default: 'available',
     },
     city: {
       type: String,

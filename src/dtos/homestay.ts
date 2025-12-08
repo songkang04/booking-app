@@ -1,4 +1,5 @@
-import { HomestayStatus } from '../models/homestay';
+import { HomestayStatus } from "../schemas/homestay.schema";
+
 
 export interface CreateHomestayDto {
   name: string;
