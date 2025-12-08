@@ -171,7 +171,7 @@ class HomestayService {
       }
 
       // Optimize by running queries in parallel
-      const [total, homestays] = await Promise.all([
+      const [total, homestaysRaw] = await Promise.all([
         Homestay.countDocuments(query),
         Homestay.find(query)
           .select(search ? { score: { $meta: 'textScore' } } : {})
@@ -179,8 +179,9 @@ class HomestayService {
           .skip(skip)
           .limit(limit)
           .populate('hostId', 'firstName lastName email')
-          .lean()
       ]);
+
+      const homestays: IHomestay[] = homestaysRaw as any;
 
       const pages = Math.ceil(total / limit);
 

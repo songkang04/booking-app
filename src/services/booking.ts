@@ -227,6 +227,7 @@ class BookingService {
       const homestay = await Homestay.findById(booking.homestayId);
 
       if (user && homestay) {
+        const bookingId = (booking._id as any)?.toString() || '';
         await emailService.sendBookingSuccessNotification(user, {
           homestayName: homestay.name,
           homestayAddress: homestay.address,
@@ -234,7 +235,7 @@ class BookingService {
           checkOutDate: booking.checkOutDate,
           guestCount: booking.guestCount,
           totalPrice: booking.totalPrice,
-          bookingId: (booking._id as string).toString(),
+          bookingId,
         });
       }
     } catch (error) {
