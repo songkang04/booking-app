@@ -44,6 +44,7 @@ class EmailService {
 
   private async verifyConnection() {
     try {
+      console.log('Đang kiểm tra kết nối SMTP...');
       await this.transporter.verify();
       console.log('✅ Kết nối SMTP đã sẵn sàng');
     } catch (error) {
