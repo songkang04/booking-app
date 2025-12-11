@@ -35,13 +35,11 @@ class EmailService {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASSWORD
       },
-      debug: process.env.NODE_ENV === 'development'
+      debug: true
     });
 
-    // Kiểm tra kết nối khi khởi tạo (trong môi trường development)
-    if (process.env.NODE_ENV === 'development') {
+    // Kiểm tra kết nối khi khởi tạo 
       this.verifyConnection();
-    }
   }
 
   private async verifyConnection() {
