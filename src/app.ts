@@ -33,12 +33,12 @@ app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Swagger documentation
-app.use('/api-docs', swaggerUi.serve);
-app.use('/api-docs', swaggerUi.setup(swaggerSpec));
-app.get('/api-docs-json', (req, res) => {
-  res.setHeader('Content-Type', 'application/json');
-  res.send(swaggerSpec);
-});
+// app.use('/api-docs', swaggerUi.serve);
+// app.use('/api-docs', swaggerUi.setup(swaggerSpec));
+// app.get('/api-docs-json', (req, res) => {
+//   res.setHeader('Content-Type', 'application/json');
+//   res.send(swaggerSpec);
+// });
 
 // Connect to MongoDB and start server
 const startServer = async () => {
